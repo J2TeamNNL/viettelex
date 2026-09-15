@@ -73,10 +73,20 @@ final class BundledTypingModesTests: XCTestCase {
         // tự/lệch ô. In-place được đo là honored thật (regionMatch=yes, imkMatch2=yes,
         // không gạch chân) — KHÁC lớp Electron ở trên, nơi caret self-report thật thà
         // nhưng edit hỏng biên từ. Spark Classic đi kèm làm hàng rào cho rule #47.
-        for id in ["app.cyan.markedit", "com.readdle.smartemail-Mac"] {
+        for id in ["com.readdle.smartemail-Mac"] {
             XCTAssertEqual(try bundledRules()[id], "inPlace", "\(id) thiếu/hỏng trong typing-modes.yml")
             XCTAssertEqual(AppState.shared.autoResolvedMode(id), .inPlace, id)
         }
+    }
+
+    // MARK: Port vtx PR#19 (15/09/2026) — MarkEdit in-place khóa phím sau ⌫ → marked
+    func testMarkEditResolvesToMarked() throws {
+        // WebKit gửi deactivateServer 10–20ms sau insertText(replacementRange:) khi
+        // ⌫ rồi gõ tiếp — không phím nào tới handle() cho tới Alt-Tab (đo 12/12 bằng
+        // CGEvent thật). Tap hỏng từ 14/08 → marked là kênh còn lại.
+        let id = "app.cyan.markedit"
+        XCTAssertEqual(try bundledRules()[id], "marked", "\(id) thiếu/hỏng trong typing-modes.yml")
+        XCTAssertEqual(AppState.shared.autoResolvedMode(id), .marked, id)
     }
 
     // MARK: Issue #55 (17/08/2026) — AppKit remote view service phải có rule riêng

@@ -646,3 +646,22 @@ never got exercised there until the tap was off.
 Changing the name requires a logout/login (it is input-source registration
 metadata). Diagnosis trail: missing menu section per-app → zero activateServer in
 DebugLog → sandbox entitlement check → naming convention (vChewing dev guidelines).
+
+## WKWebView + in-place: `deactivateServer` sau ⌫ rồi khóa phím — MarkEdit (port vtx PR#19, 15/09/2026)
+
+Field (fork vtx, 13/09/2026): MarkEdit (`app.cyan.markedit`, WKWebView + CodeMirror 6)
+gõ rồi ⌫ sửa → mọi phím sau đó beep, không chữ nào vào cho tới Alt-Tab. Tái hiện tất
+định 12/12 bằng CGEvent thật (`Scripts/ime-drive.swift`): sau một ⌫ rồi chữ kế tiếp,
+WebKit gửi `deactivateServer` 10–20 ms sau `insertText(replacementRange:)`,
+`activateServer` về sau 250 ms, và từ đó không phím nào tới `handle()`. Bỏ range tường
+minh thì hết deactivate nhưng WebKit trả caret/text CŨ ngay sau xoá nên rewrite ⌫ mất
+chữ. Marked: cùng chuỗi phím, không deactivate, đủ chữ. WebKit main 2026 có cả họ bug
+"modeless IME" cho đường `insertText:replacementRange:`; đường `setMarkedText` không dính.
+
+→ `typing-modes.yml`: `app.cyan.markedit: marked` (tap hỏng từ 14/08, in-place khóa
+phím). Đây là app WKWebView đầu tiên buộc phải marked; các WebKit khác (Safari page
+content, Spark, Outlook) vẫn in-place vì không có chuỗi ⌫→deactivate này.
+
+Công cụ mang về cùng PR: `Scripts/ime-drive.swift` (bơm phím thật qua HID tap theo layout
+đang chọn, in mốc ms để khớp `log show`) + `Scripts/ax-read-text.swift` (đọc text/caret
+qua AX) — tái hiện bug gõ KHÔNG cần người ngồi gõ.

@@ -119,7 +119,12 @@ com.apple.mail: inPlace
 # MarkEdit honor replacementRange thật (probe regionMatch=yes, reprobe
 # imkMatch2=yes, không gạch chân). Port từ fork xkhanhs/vtx (35b53f5,
 # maintainer field-test 14/08/2026).
-app.cyan.markedit: inPlace
+# 15/09/2026 (port vtx PR#19): in-place KHÓA PHÍM sau ⌫ — WebKit gửi deactivateServer
+# 10–20ms sau insertText(replacementRange:), activateServer về sau 250ms, từ đó không
+# phím nào tới handle() cho tới khi Alt-Tab (tái hiện 12/12 bằng CGEvent thật,
+# Scripts/ime-drive.swift). Marked: cùng chuỗi phím, không deactivate, đủ chữ. Tap
+# vẫn hỏng như ghi trên → marked là kênh còn lại (giá: gạch chân).
+app.cyan.markedit: marked
 # Browsers — tự dò theo ô (address bar vs nội dung trang)
 com.apple.Safari: axDetect
 com.apple.SafariTechnologyPreview: axDetect

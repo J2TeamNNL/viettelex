@@ -56,6 +56,18 @@ pkill -x VietTelex 2>/dev/null || true
 rm -rf "$DEST"
 /usr/bin/ditto "$APP" "$DEST"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DEST"
+# Bản build trong $DERIVED cũng đã được LaunchServices đăng ký dưới CÙNG bundle id
+# (xcodebuild/test host tự đăng ký ở bất cứ đâu nó được build; xoá thư mục KHÔNG huỷ
+# đăng ký — đo 13/09/2026 ở fork vtx: 4 bản ghi trong khi mdfind thấy 1). Huỷ đăng
+# ký bản build ngay sau khi cài, rồi liệt kê nếu còn bản lạ để dọn tay bằng
+# lsregister -u <path>. Không fail: bản cài đã xong. (Port vtx PR#16/#17.)
+LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREG" -u "$APP" 2>/dev/null || true
+registered=$("$LSREG" -dump 2>/dev/null | grep -E '^path:.*/VietTelex\.app \(0x')
+if [ "$(printf '%s\n' "$registered" | grep -c .)" -ne 1 ]; then
+  echo "  NOTE: LaunchServices có nhiều hơn 1 bản VietTelex.app đăng ký — dọn bản thừa bằng: $LSREG -u <path>"
+  printf '%s\n' "$registered" | sed 's/^/    /'
+fi
 spctl -a -t exec -vv "$DEST" 2>&1 | head -2
 # DO NOT blanket-reset the Accessibility grant here (it used to, forcing a
 # re-grant on EVERY install). The designated requirement is identity-based
