@@ -1580,6 +1580,7 @@ final class TelexInputController: IMKInputController {
         engine.reset()
         tracking = false
         onLen = 0
+        wordGluedToDigit = false   // #82: từ bị bỏ giữa đường, ngữ cảnh "dính số" hết hiệu lực
     }
 
     @discardableResult
@@ -2284,7 +2285,9 @@ final class TelexInputController: IMKInputController {
         // not labelled "tap · backspace" while we actually pass keys through.
         let remoteCanvas = AppState.shared.manualMode(id) == nil
             && (ClientPolicy.isRemoteDesktop(id)
-                || id.map { AppState.builtInPassthroughApps.contains($0) } == true)
+                // isBuiltInPassthrough, không phải Set: rule wildcard
+                // (com.valvesoftware.*: passthrough) cũng phải hiện nhãn đúng.
+                || id.map { AppState.isBuiltInPassthrough($0) } == true)
             && !(Accessibility.isTrusted && FocusedFieldDetector.isTextInput)
         if remoteCanvas || (AppState.shared.usesAxDetect(id) && FocusedFieldDetector.wantsPassthroughField) {
             return localized ? VTLocalized("Passthrough") : "passthrough · remote desktop"
