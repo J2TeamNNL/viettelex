@@ -36,6 +36,10 @@ final class TelexInputController: IMKInputController {
     // key). Reading it after every insert is stale under fast typing and corrupts
     // words ("được" -> "đựoc").
     private var anchor = 0        // document offset where the composition starts
+    /// Phím ngay trước từ hiện tại là CHỮ SỐ (issue #82): "5h" là một token (5h30,
+    /// 5k, 10k) — gõ tắt `h→giờ` không được nở ở đó, chỉ nở khi từ đứng riêng
+    /// ("5 h"). Digit là boundary trong Telex nên từ "h" không tự biết nó dính số.
+    private var wordGluedToDigit = false
     private var onLen = 0         // UTF-16 length of the composition on screen
     private var tracking = false  // is anchor/onLen valid for the current word?
     private var selToClear = 0    // selection length to overwrite on the first insert
@@ -480,6 +484,7 @@ final class TelexInputController: IMKInputController {
 
         switch event.keyCode {
         case kDelete:
+            wordGluedToDigit = false
             if engine.isEmpty {
                 // ⌫ on the boundary character the last word ended with puts the caret
                 // back at that word's end, and the user is going to keep editing it
@@ -611,8 +616,9 @@ final class TelexInputController: IMKInputController {
             // Enter in terminals is what the TAP path provides — grant Accessibility.
             boundaryCommitInFlight = true
             let wasEdge = edgeTapWord
-            let rewrote = boundary(client)
+            let rewrote = boundary(client, allowShortcuts: Self.shortcutExpansionAllowed(afterDigit: wordGluedToDigit))
             boundaryCommitInFlight = false
+            wordGluedToDigit = false
             // Return/Tab/Esc do not put ONE character after the word the way a space
             // does — Enter sends the message in a chat app, Tab moves focus, Esc
             // inserts nothing — so a following ⌫ is not deleting a boundary character
@@ -691,7 +697,9 @@ final class TelexInputController: IMKInputController {
             // The composed word itself is committed unchanged.
             let boundaryChar = effectiveCharacters(event)?.utf8.first
             let wasEdge = edgeTapWord
-            let rewrote = boundary(client, suppressAutoRestore: boundaryChar.map(isBracket) ?? false)
+            let rewrote = boundary(client, suppressAutoRestore: boundaryChar.map(isBracket) ?? false,
+                                   allowShortcuts: Self.shortcutExpansionAllowed(afterDigit: wordGluedToDigit))
+            wordGluedToDigit = Self.isAsciiDigit(boundaryChar)
             // Only a key that leaves exactly ONE character after the word may be
             // ⌫-ed back into it (issue #40). Arrow/function keys land here too — they
             // move the caret and insert nothing, so the word is no longer adjacent.
@@ -1190,6 +1198,7 @@ final class TelexInputController: IMKInputController {
     /// report issue #28 2026-07-27). Telex hides the same fault better (a stray "s"),
     /// so the causes were never worth naming before — now they are.
     private func dropComposition(cause: String) {
+        wordGluedToDigit = false
         if !engine.isEmpty {
             DebugLog.log("composition dropped mid-word (cause=\(cause)) len=\((engine.composed as NSString).length)")
         }
@@ -2249,6 +2258,14 @@ final class TelexInputController: IMKInputController {
     /// Việt hoá) lẫn snapshot (giữ nguyên tiếng Anh để grep bug report). tapRouting,
     /// không phải các getter per-mode: page content trong browser routes sang tap BY
     /// POLICY (06/08) mà app không hề nằm trong set tap-mode nào.
+    /// Issue #82: gõ tắt chỉ nở khi từ KHÔNG dính liền sau chữ số ("5h" giữ nguyên,
+    /// "5 h" → "5 giờ"). Pure — pinned by ShortcutAfterDigitTests.
+    static func shortcutExpansionAllowed(afterDigit: Bool) -> Bool { !afterDigit }
+    static func isAsciiDigit(_ c: UInt8?) -> Bool {
+        guard let c else { return false }
+        return c >= UInt8(ascii: "0") && c <= UInt8(ascii: "9")
+    }
+
     func strategyLabel(_ id: String?, localized: Bool) -> String {
         let routing = AppState.shared.tapRouting(id)
         if routing.selection { return localized ? VTLocalized("Selection-replace") : "tap · selection-replace (Chromium)" }

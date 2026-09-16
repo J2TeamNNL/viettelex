@@ -1968,6 +1968,8 @@ final class TerminalTapController {
     private var lastTapKeyWasBoundary = false
     // Thời điểm ⌫ vật lý gần nhất — gate của re-edit(tap), xem reEditGateOpen.
     private var lastDeleteNs: UInt64 = 0
+    // Phím trước từ hiện tại là chữ số → không nở gõ tắt cho từ đó (issue #82, "5h").
+    private var lastTapKeyWasDigit = false
 
     /// TRUE → the Spotlight overlay owns the keys and no one may compose: the
     /// routing verdict (from the app BEHIND the overlay) says tap-family, but a
@@ -2280,6 +2282,7 @@ final class TerminalTapController {
         if type == .leftMouseDown || type == .rightMouseDown {
             engine.reset()
             lastTapKeyWasBoundary = false   // click at a word's end re-arms re-edit
+            lastTapKeyWasDigit = false
             chordRecognizer.disarm()        // click giữa lúc giữ chord = không phải toggle
             // Sticky-source: click trong dải menu bar = user có thể đang tự đổi input
             // source bằng menu — dấu vết để KHÔNG giành lại (StickyInputSource).
@@ -2497,6 +2500,7 @@ final class TerminalTapController {
 
         if keyCode == kDelete {
             lastTapKeyWasBoundary = false   // ⌫ is word-adjacent editing, not a boundary
+            lastTapKeyWasDigit = false
             lastDeleteNs = DispatchTime.now().uptimeNanoseconds
             if engine.isEmpty {
                 // ⌫ on the boundary character the last word ended with re-opens that
@@ -2544,7 +2548,11 @@ final class TerminalTapController {
             // not re-open the word — see tryReopenLastCommitTap.
             defer { engine.forgetLastCommit() }
             if engine.isEmpty, SyntheticKeyboard.queueDrained() { return pass }
-            if emitBoundary(suppressAutoRestore: false) || !SyntheticKeyboard.queueDrained() {
+            let gluedToDigit = lastTapKeyWasDigit
+            lastTapKeyWasDigit = false
+            if emitBoundary(suppressAutoRestore: false,
+                            allowShortcuts: TelexInputController.shortcutExpansionAllowed(afterDigit: gluedToDigit))
+                || !SyntheticKeyboard.queueDrained() {
                 reemit(keyCode: keyCode, string: nil, original: event)
                 return nil
             }
@@ -2613,7 +2621,9 @@ final class TerminalTapController {
             // tapNativeFastPath like the letter fast-path below. (modifyInPlace adds
             // nothing here: with no rewrite pending the untouched event is already
             // exactly what should land, in every emit mode.)
-            let rewrote = emitBoundary(suppressAutoRestore: isBracketUnichar(ch.utf16.first ?? unit))
+            let rewrote = emitBoundary(suppressAutoRestore: isBracketUnichar(ch.utf16.first ?? unit),
+                                       allowShortcuts: TelexInputController.shortcutExpansionAllowed(afterDigit: lastTapKeyWasDigit))
+            lastTapKeyWasDigit = TelexInputController.isAsciiDigit(ch.asciiValue)
             // A plain ascii boundary (space, punctuation, digit) leaves exactly ONE
             // character after the word, which is what makes the next ⌫ re-openable
             // (issue #40). Anything else — an option-key symbol, a multi-scalar
