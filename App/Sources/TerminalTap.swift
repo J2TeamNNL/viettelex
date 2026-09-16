@@ -387,6 +387,13 @@ enum SpotlightDetector {
     private static var stableRuns = 0
     private static let ttlNs: UInt64 = 200_000_000
     private static let scanQueue = DispatchQueue(label: "com.viettelex.spotlight-scan", qos: .utility)
+    /// IMK đang phục vụ CHÍNH client Spotlight (cũ hoặc Campo) — latch authoritative,
+    /// đè kết quả scan CGWindowList. Cần vì Spotlight redesign (macOS 26.4+/27) chạy
+    /// trong remote view service `com.apple.campo`: cửa sổ KHÔNG thuộc process tên
+    /// "Spotlight" nữa nên scan trả false, `spotlightOverlayForcesRaw` không chặn, và
+    /// mở Spotlight TỪ MỘT APP TAP thì tap (quyết theo frontmost = app phía sau) gõ
+    /// song song với IMKit in-place → "vieejt" ra "vieêệt" (field 16/09/2026).
+    private static var clientFocused = false
 
     /// IMKit just activated the Spotlight client — authoritative proof the overlay
     /// is up. Stamp the cache TRUE immediately instead of waiting for a keystroke
@@ -398,6 +405,7 @@ enum SpotlightDetector {
     static func noteFocused() {
         lock.withLock {
             cached = true
+            clientFocused = true
             lastCheckNs = DispatchTime.now().uptimeNanoseconds
             stableRuns = 0
         }
@@ -417,6 +425,7 @@ enum SpotlightDetector {
     static func noteUnfocused() {
         lock.withLock {
             cached = false
+            clientFocused = false
             lastCheckNs = DispatchTime.now().uptimeNanoseconds
             stableRuns = 0
         }
@@ -426,9 +435,11 @@ enum SpotlightDetector {
     static func _testSetVisible(_ value: Bool) {
         lock.withLock {
             cached = value
+            clientFocused = false          // seam mô phỏng verdict của scan
             lastCheckNs = DispatchTime.now().uptimeNanoseconds
         }
     }
+    static var _testClientFocused: Bool { lock.withLock { clientFocused } }
     /// Read the cache WITHOUT kicking a refresh (a plain `isVisible` read would).
     static var _testVisible: Bool { lock.withLock { cached } }
     #endif
@@ -444,6 +455,12 @@ enum SpotlightDetector {
         if stale {
             scanQueue.async {
                 let visible = scan()                       // heavy call, off the hot path
+                // Latch của IMK thắng scan (xem clientFocused): Spotlight mới
+                // (com.apple.campo) không có cửa sổ mang tên "Spotlight".
+                if lock.withLock({ clientFocused }) {
+                    lock.withLock { refreshing = false; lastCheckNs = DispatchTime.now().uptimeNanoseconds }
+                    return
+                }
                 lock.withLock {
                     stableRuns = visible == cached ? stableRuns + 1 : 0
                     cached = visible

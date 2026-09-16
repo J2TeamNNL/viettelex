@@ -29,6 +29,26 @@ final class GonhanhHardeningTests: XCTestCase {
         XCTAssertFalse(AppState.builtInPassthroughApps.contains("com.apple.ScreenContinuity"))
     }
 
+    /// Spotlight redesign (macOS 26.4+/27): cửa sổ không mang tên process
+    /// "Spotlight" nữa, nên CGWindowList scan trả false. Latch từ IMK
+    /// (noteFocused/noteUnfocused) phải thắng scan, không thì tap — quyết theo
+    /// frontmost = app phía sau overlay — gõ song song với IMKit ("vieejt" →
+    /// "vieêệt" khi mở Spotlight từ iTerm, field 16/09/2026).
+    func testSpotlightClientLatchOutranksTheWindowScan() {
+        SpotlightDetector.noteFocused()
+        XCTAssertTrue(SpotlightDetector._testClientFocused)
+        XCTAssertTrue(SpotlightDetector.isVisible, "latch phải giữ visible dù scan nói false")
+        // Gate của tap: visible + không ép tay họ tap ⇒ tap pass raw, IMKit lo.
+        XCTAssertTrue(TerminalTapController.spotlightOverlayForcesRaw(
+            visible: SpotlightDetector.isVisible, manualPin: nil))
+        SpotlightDetector.noteUnfocused()
+        XCTAssertFalse(SpotlightDetector._testClientFocused)
+        XCTAssertFalse(SpotlightDetector._testVisible)
+        // Seam của test vẫn mô phỏng được verdict thuần từ scan.
+        SpotlightDetector._testSetVisible(true)
+        XCTAssertFalse(SpotlightDetector._testClientFocused)
+    }
+
     func testChromeRemoteDesktopPWAIsPassthroughNotAxDetect() {
         // Dedicated CRD window (PWA / Chrome App) must not inherit Chrome's axDetect.
         XCTAssertEqual(AppState.shared.autoResolvedMode(
