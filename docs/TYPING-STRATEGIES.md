@@ -50,7 +50,8 @@ bảng nhưng cắt đuôi phân phối (tail latency):
   caret/read-back, AX ground truth về sau và có quyền override.
 
 (Ngoài 5 đường còn **passthrough** cho remote-desktop/VM — IME hành xử như tắt,
-xem `ClientPolicy.forcePassthroughBundleIDs`.)
+xem `ClientPolicy.forcePassthroughBundleIDs` và `isRemoteDesktopURL` cho Chrome
+Remote Desktop trong browser.)
 
 ---
 
@@ -193,7 +194,9 @@ space) để hủy suggestion, rồi backspace-retype bình thường.
   - chọn-ký-tự được (omnibox) → selection-replace;
   - chọn-ký-tự là chọn ô (Excel) → empty-reset.
 - **Remote desktop / VM / screen sharing** → passthrough hoàn toàn (synthetic
-  Unicode vô nghĩa với guest OS).
+  Unicode vô nghĩa với guest OS). Gồm cả Chrome Remote Desktop trong browser
+  (`remotedesktop.google.com`): cùng lớp scancode tunnel, dò theo URL vì bundle
+  id vẫn là Chrome/Safari/Edge.
 - **Secure field (mật khẩu)** → IME tự tắt (hành vi chuẩn hệ thống).
 
 ## MAS (Mac App Store)
@@ -214,6 +217,8 @@ Thứ tự quyết định mỗi keystroke trong `TelexInputController.handle` +
 
 ```
 1. ClientPolicy.isRemoteDesktop(bundleID)?        → passthrough (IME như tắt)
+   Browser page + isRemoteDesktopURL (Chrome Remote Desktop)
+                                                  → passthrough (guest IME gõ)
 2. manualMode(bundleID) (user pin trong Bảng cơ chế gõ)
      .inPlace / .marked / .tap                    → override tất cả, không probe
      (.tap vẫn đòi Accessibility.isTrusted)

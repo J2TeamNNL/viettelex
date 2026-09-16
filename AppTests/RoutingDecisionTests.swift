@@ -37,7 +37,8 @@ final class RoutingDecisionTests: XCTestCase {
         let all = W(tap: true, sel: .yes, empty: true)
         XCTAssertEqual(AppState.gateRouting(all, trusted: { true },
                                             wantsSelection: { XCTFail("sel .yes must not consult the detector"); return false },
-                                            wantsMarkedField: { XCTFail("sel .yes must not consult the marked verdict"); return false }),
+                                            wantsMarkedField: { XCTFail("sel .yes must not consult the marked verdict"); return false },
+                                            wantsPassthroughField: { XCTFail("sel .yes must not consult the passthrough verdict"); return false }),
                        R(tap: true, selection: true, emptyReset: true))
         XCTAssertEqual(AppState.gateRouting(all, trusted: { false }, wantsSelection: { false },
                                             wantsMarkedField: { false }), R())
@@ -47,7 +48,8 @@ final class RoutingDecisionTests: XCTestCase {
         var reads = 0
         let w = W(tap: false, sel: .perField, empty: false)
         let r = AppState.gateRouting(w, trusted: { true }, wantsSelection: { reads += 1; return true },
-                                     wantsMarkedField: { XCTFail("omnibox must not consult the marked verdict"); return false })
+                                     wantsMarkedField: { XCTFail("omnibox must not consult the marked verdict"); return false },
+                                     wantsPassthroughField: { XCTFail("omnibox must not consult the passthrough verdict"); return false })
         XCTAssertEqual(r, R(tap: false, selection: true, emptyReset: false))
         XCTAssertEqual(reads, 1)
         XCTAssertFalse(AppState.gateRouting(w, trusted: { true }, wantsSelection: { false },
@@ -61,11 +63,13 @@ final class RoutingDecisionTests: XCTestCase {
         _ = AppState.gateRouting(W(),
                                  trusted: { XCTFail("no wants → trusted must not be read"); return true },
                                  wantsSelection: { XCTFail("no wants → detector must not be read"); return false },
-                                 wantsMarkedField: { XCTFail("no wants → marked verdict must not be read"); return false })
+                                 wantsMarkedField: { XCTFail("no wants → marked verdict must not be read"); return false },
+                                 wantsPassthroughField: { XCTFail("no wants → passthrough verdict must not be read"); return false })
         _ = AppState.gateRouting(W(tap: true, sel: .perField, empty: false),
                                  trusted: { false },
                                  wantsSelection: { XCTFail("untrusted → detector must not be read"); return false },
-                                 wantsMarkedField: { XCTFail("untrusted → marked verdict must not be read"); return false })
+                                 wantsMarkedField: { XCTFail("untrusted → marked verdict must not be read"); return false },
+                                 wantsPassthroughField: { XCTFail("untrusted → passthrough verdict must not be read"); return false })
     }
 
     // MARK: equivalence with the legacy per-mode getters (shared _rawWants core)
@@ -118,11 +122,36 @@ final class RoutingDecisionTests: XCTestCase {
         XCTAssertEqual(r, R(tap: false, selection: false, emptyReset: false))
     }
 
+    func testPageContentRemoteDesktopPassthroughSkipsTap() {
+        // Chrome Remote Desktop (remotedesktop.google.com): a scancode tunnel.
+        // Local tap Backspace+retype fights the guest IME when both machines run
+        // VietTelex. Neither tap nor selection — IMKit then passthroughs.
+        let w = W(tap: false, sel: .perField, empty: false)
+        let r = AppState.gateRouting(w, trusted: { true },
+                                     wantsSelection: { false },
+                                     wantsMarkedField: { XCTFail("passthrough settled before the marked verdict"); return false },
+                                     wantsPassthroughField: { true })
+        XCTAssertEqual(r, R(tap: false, selection: false, emptyReset: false),
+                       "no tap-defer → IMKit passthrough, not compose")
+    }
+
+    func testWebKitRemoteDesktopPassthroughSkipsInPlace() {
+        // Safari CRD would otherwise take the WebKit in-place carve-out.
+        let w = W(tap: false, sel: .perField, empty: false)
+        let r = AppState.gateRouting(w, trusted: { true },
+                                     wantsSelection: { false },
+                                     wantsMarkedField: { XCTFail("passthrough settled before the marked verdict"); return false },
+                                     wantsPassthroughField: { true },
+                                     pageContentInPlace: true)
+        XCTAssertEqual(r, R(), "CRD wins over the WebKit in-place carve-out")
+    }
+
     func testOmniboxStillRoutesToSelection() {
         let w = W(tap: false, sel: .perField, empty: false)
         let r = AppState.gateRouting(w, trusted: { true },
                                      wantsSelection: { true },
-                                     wantsMarkedField: { XCTFail("omnibox settled before the marked verdict"); return false })
+                                     wantsMarkedField: { XCTFail("omnibox settled before the marked verdict"); return false },
+                                     wantsPassthroughField: { XCTFail("omnibox settled before the passthrough verdict"); return false })
         XCTAssertEqual(r, R(tap: false, selection: true, emptyReset: false))
     }
 
@@ -168,10 +197,29 @@ final class RoutingDecisionTests: XCTestCase {
         // false and stamps nothing — set explicitly for determinism).
         FocusedFieldDetector._testSetCached(false)
         FocusedFieldDetector._testSetMarked(false)
+        FocusedFieldDetector._testSetPassthrough(false)
         XCTAssertFalse(AppState.shared.tapRouting("com.apple.Safari").tapDefer,
                        "Safari page content must reach IMKit in-place")
         XCTAssertTrue(AppState.shared.tapRouting("com.google.Chrome").tapDefer,
                       "Chromium page content stays on the tap")
+    }
+
+    func testEndToEndChromeRemoteDesktopSkipsTap() {
+        Accessibility.testTrustOverride = true
+        defer {
+            Accessibility.testTrustOverride = nil
+            FocusedFieldDetector.invalidate()
+        }
+        FocusedFieldDetector._testSetCached(false)       // page content, not omnibox
+        FocusedFieldDetector._testSetMarked(false)
+        FocusedFieldDetector._testSetPassthrough(true)   // remotedesktop.google.com
+        XCTAssertFalse(AppState.shared.tapRouting("com.google.Chrome").tapDefer,
+                       "Chrome Remote Desktop must not tap-compose (guest IME owns keys)")
+        XCTAssertFalse(AppState.shared.tapRouting("com.apple.Safari").tapDefer,
+                       "Safari CRD must not tap-compose either")
+        FocusedFieldDetector._testSetPassthrough(false)
+        XCTAssertTrue(AppState.shared.tapRouting("com.google.Chrome").tapDefer,
+                      "leaving CRD restores Chromium page-content tap")
     }
 }
 

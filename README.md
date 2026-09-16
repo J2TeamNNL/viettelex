@@ -115,6 +115,18 @@ Gỡ khỏi Input Sources chỉ tắt bộ gõ, chưa xoá app. Gỡ hẳn: xoá
 </details>
 
 <details>
+<summary><strong>Gõ Remote Desktop (Chrome Remote Desktop) bị nhảy dấu?</strong></summary>
+
+Khi **cả hai máy** đều cài VietTelex, bộ gõ local và bộ gõ remote cùng sửa một chuỗi phím — dấu Backspace của tap đua với Telex bên kia, con trỏ nhảy loạn.
+
+**Cách đúng:** để VietTelex bật trên **máy đang bị điều khiển** (máy remote). Máy đang ngồi gõ tự tắt IME trong phiên remote (cùng cách với Windows App / Screen Sharing). Tab `remotedesktop.google.com` được nhận ra theo URL; các app RDP native đã passthrough sẵn.
+
+Muốn gõ tiếng Việt vào ô tên máy / PIN trên trang Chrome Remote Desktop: chuyển sang ABC, hoặc gõ không dấu.
+
+Cần quyền Trợ năng để bộ gõ đọc được URL tab (Chrome vốn đã cần quyền này).
+</details>
+
+<details>
 <summary><strong>Phím tắt trong app chụp màn hình (Flameshot…) không ăn?</strong></summary>
 
 Lỗi của framework Qt (Flameshot, OBS, VLC… dùng): shortcut trong overlay bị nuốt khi có **bất kỳ** bộ gõ nào đang active — bộ gõ Simple Telex có sẵn của Apple cũng dính y hệt, không riêng VietTelex ([chi tiết](https://github.com/ptrinh/viettelex/issues/54)). Khắc phục: System Settings → Keyboard → bật **"Automatically switch to a document's input source"**, rồi một lần chuyển sang ABC khi đang ở app đó — macOS sẽ tự nhớ, các app khác vẫn gõ tiếng Việt bình thường.

@@ -99,7 +99,9 @@ tình trạng quyền Accessibility và **Cài đặt…**
    (TelexCore, có unit test) hard-code bundle id của RDP/VM/screen-share (Microsoft
    Remote Desktop *và* Windows App mới cùng dùng `com.microsoft.rdc.macos`, cộng
    Parallels, VMware Fusion, UTM, Screen Sharing, Citrix, TeamViewer, RealVNC,
-   Remotix). Các client này forward scancode thô nên IME hành xử như OFF.
+   Remotix, RustDesk, AnyDesk). Các client này forward scancode thô nên IME hành xử như OFF.
+   Chrome Remote Desktop trong browser không có bundle id riêng — `isRemoteDesktopURL`
+   (`remotedesktop.google.com` + extension id) passthrough theo ô, để máy remote gõ.
 2. **Secure input** — `IsSecureEventInputEnabled()` được check đầu `handle()`; khi
    active thì passthrough sạch và reset buffer (không xử lý, không log). Chi phí đo
    được ≈ **0.06 µs/call** — an toàn trên hot path.

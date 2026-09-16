@@ -596,6 +596,9 @@ enum FocusedFieldDetector {
     /// invalidation as `cached`; served by `wantsMarkedField` without kicking its own
     /// refresh (every browser keystroke already reads `wantsSelection` first).
     private static var cachedMarked = false
+    /// Browser-hosted remote desktop (Chrome Remote Desktop): the page is a scancode
+    /// tunnel, so the local IME must stay off. Cache-only like `cachedMarked`.
+    private static var cachedPassthrough = false
 
     /// First web-area host seen by the last scan — DIAGNOSTIC ONLY, never read by any
     /// routing decision. Lets a debug log line name the actual site when something
@@ -626,6 +629,9 @@ enum FocusedFieldDetector {
             // Same asymmetry as `cached`: one keystroke of in-place in a Docs canvas
             // is the mild failure; forcing marked into an unknown field is not.
             cachedMarked = false
+            // Same for CRD: one composed key into a remote session (stale default)
+            // is milder than passthrough-ing the first key of every Chrome tab.
+            cachedPassthrough = false
             cachedHost = nil
             lastCheckNs = 0
             stableRuns = 0
@@ -671,6 +677,13 @@ enum FocusedFieldDetector {
             lastCheckNs = DispatchTime.now().uptimeNanoseconds
         }
     }
+    /// Same seam for the browser-hosted remote-desktop (passthrough) verdict.
+    static func _testSetPassthrough(_ value: Bool) {
+        lock.withLock {
+            cachedPassthrough = value
+            lastCheckNs = DispatchTime.now().uptimeNanoseconds
+        }
+    }
     /// Same seam for the diagnostic-only host string.
     static func _testSetHost(_ value: String?) {
         lock.withLock {
@@ -684,6 +697,10 @@ enum FocusedFieldDetector {
     /// with marked text. Cache-only read: refreshes piggyback on `wantsSelection`,
     /// which every browser keystroke reads first (tap routing then IMKit routing).
     static var wantsMarkedField: Bool { lock.withLock { cachedMarked } }
+
+    /// True → the focused field is a browser-hosted remote-desktop canvas (Chrome
+    /// Remote Desktop). Cache-only: refreshes piggyback on `wantsSelection`.
+    static var wantsPassthroughField: Bool { lock.withLock { cachedPassthrough } }
 
 
     /// Diagnostic-only: the host last seen for the focused field, or nil (not a web
@@ -702,7 +719,7 @@ enum FocusedFieldDetector {
         if stale {
             scanQueue.async {
                 pokeChromiumAX()
-                let (wants, marked, host) = scan()
+                let (wants, marked, passthrough, host) = scan()
                 // Diagnostic (debug logging only, and off the keystroke path): WHY this
                 // verdict. A browser whose AX tree we cannot read falls back to
                 // selection-replace for EVERY field — including page content, where each
@@ -713,12 +730,14 @@ enum FocusedFieldDetector {
                 // the site for a future report on an unrecognized editor (2026-08-06).
                 if AppState.shared.debugLogging {
                     let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
-                    DebugLog.log("field-scan \(front): wantsSelection=\(wants) marked=\(marked) host=\(host ?? "?") roles=[\(roleChain())]")
+                    DebugLog.log("field-scan \(front): wantsSelection=\(wants) marked=\(marked) passthrough=\(passthrough) host=\(host ?? "?") roles=[\(roleChain())]")
                 }
                 lock.withLock {
-                    stableRuns = (wants == cached && marked == cachedMarked) ? stableRuns + 1 : 0
+                    stableRuns = (wants == cached && marked == cachedMarked
+                                  && passthrough == cachedPassthrough) ? stableRuns + 1 : 0
                     cached = wants
                     cachedMarked = marked
+                    cachedPassthrough = passthrough
                     cachedHost = host
                     lastCheckNs = DispatchTime.now().uptimeNanoseconds
                     refreshing = false
@@ -871,8 +890,8 @@ enum FocusedFieldDetector {
         return roles.joined(separator: "→")
     }
 
-    private static func scan() -> (selection: Bool, marked: Bool, host: String?) {
-        guard let focused = focusedElementForScan() else { return (selection: true, marked: false, host: nil) }
+    private static func scan() -> (selection: Bool, marked: Bool, passthrough: Bool, host: String?) {
+        guard let focused = focusedElementForScan() else { return (selection: true, marked: false, passthrough: false, host: nil) }
         // NO role short-circuit on the focused element: an AXComboBox/AXSearchField
         // rule used to run BEFORE the ancestor walk ("a search box inside a web area
         // is autocomplete-prone"), but field evidence killed it — youtube.com's search
@@ -896,6 +915,7 @@ enum FocusedFieldDetector {
         // any enclosing web area's URL may still prove Docs.
         var sawWebArea = false
         var marked = false
+        var passthrough = false
         // First web-area host seen — DIAGNOSTIC ONLY (never used for routing), so a
         // "stale caret" report names the actual site instead of just
         // "com.google.Chrome" (added after the 2026-08-06 unidentified-tab report).
@@ -906,7 +926,8 @@ enum FocusedFieldDetector {
         // August all chased the same contract-free `insertText(replacementRange:)`
         // channel, and the Discord case proved the failure is undetectable from
         // inside (every self-report said honored while the visible text appended).
-        // Only the marked-class exception (Google Docs) remains URL-based.
+        // URL-based exceptions that remain: marked-class (Google Docs, TikTok) and
+        // passthrough-class (Chrome Remote Desktop — a scancode tunnel, not an editor).
         var host: String?
         // Did the walk STOP because it ran out of hops, rather than because it reached
         // the top of the tree? See `exhaustedMeansPageContent` — that distinction is
@@ -921,18 +942,19 @@ enum FocusedFieldDetector {
                 if verdict {
                     // Toolbar: decisive only BEFORE any web area (an omnibox is never
                     // inside page content — above one, it's just browser chrome).
-                    if !sawWebArea { return (selection: true, marked: false, host: nil) }
+                    if !sawWebArea { return (selection: true, marked: false, passthrough: false, host: nil) }
                 } else {
                     sawWebArea = true
-                    if !marked {
+                    if !marked || !passthrough {
                         var urlRef: CFTypeRef?
                         if AXUIElementCopyAttributeValue(element, "AXURL" as CFString, &urlRef) == .success {
                             let url = urlRef as? URL
                             if host == nil { host = url?.host }
-                            marked = Self.markedFieldURL(url)
+                            if !passthrough { passthrough = Self.passthroughFieldURL(url) }
+                            if !marked { marked = Self.markedFieldURL(url) }
                         }
                     }
-                    if marked { break }   // verdicts settled
+                    if marked || passthrough { break }   // verdicts settled
                 }
             }
             var parentRef: CFTypeRef?
@@ -941,12 +963,12 @@ enum FocusedFieldDetector {
             else { break }
             element = parent as! AXUIElement
         }
-        if sawWebArea { return (selection: false, marked: marked, host: host) }
+        if sawWebArea { return (selection: false, marked: marked, passthrough: passthrough, host: host) }
         // No decisive ancestor. A walk that DIED ON THE HOP BUDGET is page content, not
         // chrome (see exhaustedMeansPageContent); one that reached the top without a
         // web area is genuinely unknown → selection, the historical safe default.
         return (selection: !Self.exhaustedMeansPageContent(hops: hops),
-                marked: false, host: nil)
+                marked: false, passthrough: false, host: nil)
     }
 
     /// Pure: does this web-area URL host an editor that must be typed with marked
@@ -964,6 +986,15 @@ enum FocusedFieldDetector {
         // Docs/TikTok (editor áp edit theo model JS riêng).
         if host == "antigravity.google.com" { return true }
         return host == "tiktok.com" || host.hasSuffix(".tiktok.com")
+    }
+
+    /// Pure: does this web-area URL host a remote-desktop canvas that must NOT be
+    /// composed into locally? Chrome Remote Desktop forwards scancodes to the guest;
+    /// a local tap Backspace+retype plus the guest VietTelex fighting over the same
+    /// keys is the "gõ có dấu cứ nhảy loạn" class. Delegate to ClientPolicy so the
+    /// host list is unit-tested without AX.
+    static func passthroughFieldURL(_ url: URL?) -> Bool {
+        ClientPolicy.isRemoteDesktopURL(url)
     }
 
     /// Ancestor-walk hop budget. 12 → 24 after field report 2026-07-30 (J2TeamNNL,

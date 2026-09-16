@@ -24,6 +24,9 @@
 #   emptyReset  — chèn U+202F hủy suggestion rồi backspace-retype. Cho grid
 #                 app mà Shift+← chọn Ô KỀ thay vì ký tự (Excel).
 #   passthrough — IME coi như tắt (app remote/VM forward scancode thô).
+#                 Chrome Remote Desktop (tab remotedesktop.google.com) KHÔNG có
+#                 dòng riêng ở đây vì bundle id vẫn là browser: dò theo URL,
+#                 xem ClientPolicy.isRemoteDesktopURL.
 #
 # Lịch sử đáng nhớ (để khỏi lặp lại):
 # - Lark/Slack/Discord/VSCode (Electron): in-place hỏng Ở BIÊN TỪ (editor áp
@@ -170,7 +173,9 @@ ai.perplexity.comet: inPlace
 # per-app không tách được 2 vùng này, nên selection chỉ nên là pin thủ công.
 # Grid app: cell autocomplete đua backspace, Shift+← chọn ô kề
 com.microsoft.Excel: emptyReset
-# Remote desktop / VM / screen sharing — scancode thô sang máy khách
+# Remote desktop / VM / screen sharing — scancode thô sang máy khách.
+# Chrome Remote Desktop trong Chrome/Safari/Edge: passthrough theo URL
+# (remotedesktop.google.com), không theo bundle — xem ClientPolicy.isRemoteDesktopURL.
 com.microsoft.rdc.macos: passthrough
 com.microsoft.rdc.osx.beta: passthrough
 com.parallels.desktop.console: passthrough

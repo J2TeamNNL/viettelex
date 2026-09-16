@@ -74,8 +74,11 @@ Quy tắc cứng:
 - App chưa phân loại được **probe** (2 tầng: verdict sơ bộ sync từ read-back/caret —
   honored cần xác nhận ở 2 offset khác nhau, chống caret rác hằng số kiểu Lark;
   AX ground truth async override sau). Kết quả persist (`probedApps` / `fallbackApps`).
-- **Remote desktop / VM / screen-share** (`ClientPolicy.forcePassthroughBundleIDs`):
-  forward scancode thô nên IME passthrough hoàn toàn.
+- **Remote desktop / VM / screen-share** (`ClientPolicy.forcePassthroughBundleIDs`
+  + `isRemoteDesktopURL` cho Chrome Remote Desktop trong browser):
+  forward scancode thô nên IME passthrough hoàn toàn. Khi cả máy local lẫn máy
+  remote đều chạy VietTelex, chỉ máy remote được gõ — local tự tắt trong canvas
+  remote (tránh hai bộ gõ giành nhau, dấu nhảy loạn).
 - **Secure input** (password field): kiểm tra `IsSecureEventInputEnabled()` đầu
   `handle()` — bypass sạch, không xử lý, không log.
 

@@ -4,6 +4,13 @@
 // Remote-desktop / virtualization / screen-sharing apps forward raw scancodes to a
 // guest OS; a synthesized Unicode syllable is meaningless there and comes out wrong.
 // For those clients the IME must behave exactly as if it were OFF.
+//
+// Browser-hosted viewers (Chrome Remote Desktop at remotedesktop.google.com) are the
+// same class but share the browser's bundle id, so they are matched by URL / hosted
+// app-id rather than by `com.google.Chrome` itself — composing in the rest of Chrome
+// must keep working.
+
+import Foundation
 
 public enum ClientPolicy {
 
@@ -31,9 +38,54 @@ public enum ClientPolicy {
         // — typing in-place works cleanly. See typing-modes.yml for the inPlace rule.
     ]
 
+    /// Chrome Web Store / Chrome App ids whose window is a Chrome Remote Desktop
+    /// viewer (not ordinary Chrome). Used both as `chrome-extension://` hosts and as
+    /// substrings of PWA / "Open as window" bundle ids
+    /// (`com.google.Chrome.app.<id>`).
+    /// `gbchcmhmhahfdphkhkmpfmiifomcnacc` is the legacy Chrome App; the current
+    /// companion extension is `inomeogfingihgjfjlpeplalcfajhgai`.
+    public static let chromeRemoteDesktopExtensionIDs: Set<String> = [
+        "inomeogfingihgjfjlpeplalcfajhgai",
+        "gbchcmhmhahfdphkhkmpfmiifomcnacc",
+    ]
+
     /// True when the built-in list marks this client as force-passthrough.
     public static func isRemoteDesktop(_ bundleID: String?) -> Bool {
         guard let id = bundleID else { return false }
-        return forcePassthroughBundleIDs.contains(id)
+        if forcePassthroughBundleIDs.contains(id) { return true }
+        return isChromeRemoteDesktopApp(id)
+    }
+
+    /// A dedicated Chrome Remote Desktop window (PWA / Chrome App shortcut), not a
+    /// normal Chrome tab. Normal `com.google.Chrome` is NOT this — those tabs are
+    /// classified by URL instead (`isRemoteDesktopURL`).
+    public static func isChromeRemoteDesktopApp(_ bundleID: String?) -> Bool {
+        guard let id = bundleID else { return false }
+        for ext in chromeRemoteDesktopExtensionIDs where id.contains(ext) { return true }
+        return false
+    }
+
+    /// True when this web-area URL is a scancode tunnel to another machine — local
+    /// composition (especially tap Backspace+retype) would fight the remote IME:
+    /// diacritic keys jump the caret. Widen only with field evidence.
+    public static func isRemoteDesktopURL(_ url: URL?) -> Bool {
+        guard let url else { return false }
+        let scheme = url.scheme?.lowercased()
+        guard let host = url.host?.lowercased() else { return false }
+        if isChromeRemoteDesktopHost(host) { return true }
+        if scheme == "chrome-extension" && chromeRemoteDesktopExtensionIDs.contains(host) {
+            return true
+        }
+        return false
+    }
+
+    /// `remotedesktop.google.com` and its subdomains (and the corp equivalent).
+    /// `fakeremotedesktop.google.com` / `remotedesktop.google.com.evil.com` must
+    /// NOT match — same suffix discipline as `markedFieldURL`.
+    public static func isChromeRemoteDesktopHost(_ host: String) -> Bool {
+        host == "remotedesktop.google.com"
+            || host.hasSuffix(".remotedesktop.google.com")
+            || host == "remotedesktop.corp.google.com"
+            || host.hasSuffix(".remotedesktop.corp.google.com")
     }
 }

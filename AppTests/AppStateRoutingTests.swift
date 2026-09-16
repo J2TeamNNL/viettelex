@@ -202,6 +202,8 @@ final class AppStateRoutingTests: XCTestCase {
     func testPassthroughAndMisc() {
         XCTAssertEqual(s.autoResolvedMode("com.apple.ScreenSharing"), .passthrough)
         XCTAssertEqual(s.autoResolvedMode("com.microsoft.rdc.macos"), .passthrough)  // ClientPolicy floor
+        XCTAssertEqual(s.autoResolvedMode("com.google.Chrome.app.gbchcmhmhahfdphkhkmpfmiifomcnacc"),
+                       .passthrough)  // CRD PWA — not Chrome axDetect
         XCTAssertEqual(s.autoResolvedMode(unknownApp), .tap)   // policy 06/08: app lạ → tap
         XCTAssertNil(s.autoResolvedMode(nil))
         XCTAssertFalse(s.usesMarkedText(nil))

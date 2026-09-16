@@ -29,6 +29,13 @@ final class GonhanhHardeningTests: XCTestCase {
         XCTAssertFalse(AppState.builtInPassthroughApps.contains("com.apple.ScreenContinuity"))
     }
 
+    func testChromeRemoteDesktopPWAIsPassthroughNotAxDetect() {
+        // Dedicated CRD window (PWA / Chrome App) must not inherit Chrome's axDetect.
+        XCTAssertEqual(AppState.shared.autoResolvedMode(
+            "com.google.Chrome.app.Default-inomeogfingihgjfjlpeplalcfajhgai"), .passthrough)
+        XCTAssertEqual(AppState.shared.autoResolvedMode("com.google.Chrome"), .axDetect)
+    }
+
     func testBundledPlistCarriesTheNewRules() {
         // the SHIPPED resource (not just the repo file) must contain the ids
         guard let url = Bundle(for: TelexInputController.self)
