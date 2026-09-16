@@ -770,7 +770,7 @@ final class AppState: @unchecked Sendable {
             // the same word over TextMate (in-place, no tap wants) worked fine. The
             // tap already force-passes Spotlight's own keys raw independently
             // (spotlightOverlayForcesRaw), so this merge buys Spotlight nothing.
-            if let f = front, f != bundleID, bundleID != Self.spotlightBundleID {
+            if let f = front, f != bundleID, !Self.isSpotlight(bundleID) {
                 w = Self.mergedWants(w, _rawWants(f))
             }
             return w
@@ -919,6 +919,19 @@ final class AppState: @unchecked Sendable {
     /// any other app. Only the tap-side DETECTION needs the window scan (the
     /// frontmost app stays whatever is behind the overlay).
     static let spotlightBundleID = "com.apple.Spotlight"
+    /// Spotlight redesign (macOS 26.4+/27, "Campo"): ô tìm kiếm là remote view
+    /// service với client id riêng — mọi chỗ nhận diện Spotlight phải hiểu CẢ HAI
+    /// (đo 16/09/2026: IMK báo com.apple.campo trên macOS 27.0).
+    static let spotlightCampoBundleID = "com.apple.campo"
+    static func isSpotlight(_ bundleID: String?) -> Bool {
+        guard let id = bundleID else { return false }
+        return id == spotlightBundleID || id == spotlightCampoBundleID
+    }
+    /// Ép tay cho Spotlight: pin ở BẤT KỲ id nào trong hai id cũng áp cho cả hai
+    /// (Bảng cơ chế gõ chỉ có một dòng "Spotlight").
+    func spotlightManualMode() -> AppMode? {
+        manualMode(Self.spotlightBundleID) ?? manualMode(Self.spotlightCampoBundleID)
+    }
 
     /// Apps with a built-in special strategy (per-field browsers, forced-marked like
     /// Excel), for the Settings mode table — it lists the installed ones so their

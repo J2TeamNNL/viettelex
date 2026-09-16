@@ -2444,7 +2444,7 @@ final class TerminalTapController {
         // only for an explicit tap-family manual pick. Manual pin consulted FIRST:
         // isVisible kicks a CGWindowList background scan every 200ms while typing,
         // which nobody should pay for unless Spotlight was actually pinned.
-        let spotlightManual = AppState.shared.manualMode(AppState.spotlightBundleID)
+        let spotlightManual = AppState.shared.spotlightManualMode()
         // One-lock snapshot for the whole selection/emptyReset/tap chain below —
         // was 3 separate AppState round trips, two of them re-reading isTrusted.
         let tapKeyRouting = AppState.shared.tapRouting(id)

@@ -89,6 +89,13 @@ com.westbridge.stremio5-mac: inPlace
 com.apple.finder: inPlace
 com.apple.ActivityMonitor: inPlace
 com.apple.Spotlight: inPlace
+# Spotlight REDESIGN (macOS 26.4+/27, "Campo"): ô tìm kiếm là REMOTE VIEW SERVICE
+# với client id RIÊNG — IMK báo com.apple.campo, không phải com.apple.Spotlight
+# (đo 16/09/2026 trên macOS 27.0). Thiếu rule thì rơi vào "app lạ → kênh an toàn"
+# = tap, đồng thời split-brain guard ép marked (log: "split-brain → marked:
+# client=com.apple.campo") → hai kênh giành nhau, gõ hỏng (field report email
+# 16/09: "bản cập nhật mới bị lỗi gõ trên spotlight, macOS 27"). Cùng lớp #55.
+com.apple.campo: inPlace
 # Overlay launcher (Alfred, Raycast, LaunchBar): cùng lớp Spotlight — ô tìm kiếm là
 # NSTextField chuẩn, gõ trực tiếp sạch. Thiếu rule thì rơi vào "app lạ → kênh an
 # toàn" = marked text, và user thấy "tự nhiên bị gạch chân khi mở Alfred" (issue

@@ -426,7 +426,7 @@ final class TelexInputController: IMKInputController {
         // ORDER MATTERS for CPU: consult the manual pin FIRST — isVisible kicks a
         // CGWindowList background scan every 200ms while typing, which nobody needs
         // unless Spotlight was explicitly pinned to a tap-family mode (rare).
-        let spotlightManual = AppState.shared.manualMode(AppState.spotlightBundleID)
+        let spotlightManual = AppState.shared.spotlightManualMode()
         let spotlightDefersToTap = (spotlightManual == .selection
                 || spotlightManual == .tap || spotlightManual == .emptyReset)
             && SpotlightDetector.isVisible
@@ -1690,7 +1690,7 @@ final class TelexInputController: IMKInputController {
             // Spotlight took focus: stamp the visibility cache NOW — the overlay-raw
             // gate in the tap must not wait for a CGWindowList scan that only lands
             // after the first keys have already been mis-composed (2026-07-31).
-            if AppState.shared.currentBundleID == AppState.spotlightBundleID {
+            if AppState.isSpotlight(AppState.shared.currentBundleID) {
                 SpotlightDetector.noteFocused()
                 let now = DispatchTime.now().uptimeNanoseconds
                 // ASSIGN (not just set-true): an arm from a rapid cycle the user
