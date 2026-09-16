@@ -408,6 +408,18 @@ final class TelexInputController: IMKInputController {
         // decision — this used to be 6 separate calls, each re-locking AppState and
         // several re-reading Accessibility.isTrusted.
         let routing = AppState.shared.tapRouting(id, front: frontID)
+        // Browser-hosted remote desktop (Chrome Remote Desktop in Chrome/Safari/Edge):
+        // AFTER tapRouting so the field scan is kicked (wantsSelection). Checking
+        // before that would return early forever on a stale CRD verdict — switching
+        // to Gmail in the same Chrome window never calls activateServer, so the
+        // cache would never refresh. Not gated on isTextInput: a hidden IME
+        // <textarea> on the CRD canvas would look like a real field and re-enable
+        // the local/guest fight.
+        if (AppState.shared.usesAxDetect(id) || AppState.shared.usesAxDetect(frontID)),
+           FocusedFieldDetector.wantsPassthroughField {
+            logDecision("handle \(id ?? "?")/front=\(frontID ?? "?"): web remote-desktop → discard (raw passthrough)")
+            discardComposition(); return false
+        }
         // SPLIT-BRAIN GUARD (lớp bug issue #55): client id routes về họ tap (thường
         // là XPC service lạ rơi vào safe-unknown) nhưng TAP thì quyết theo FRONTMOST
         // — nếu frontmost không thuộc họ tap, tap sẽ pass nguyên phím: IMK nhường,
@@ -2228,6 +2240,16 @@ final class TelexInputController: IMKInputController {
     /// không phải các getter per-mode: page content trong browser routes sang tap BY
     /// POLICY (06/08) mà app không hề nằm trong set tap-mode nào.
     func strategyLabel(_ id: String?, localized: Bool) -> String {
+        // Remote-desktop canvas (native RDP / browser-hosted CRD): IME is off.
+        // Checked before tapRouting so a Chrome tab on remotedesktop.google.com is
+        // not labelled "tap · backspace" while we actually pass keys through.
+        let remoteCanvas = AppState.shared.manualMode(id) == nil
+            && (ClientPolicy.isRemoteDesktop(id)
+                || id.map { AppState.builtInPassthroughApps.contains($0) } == true)
+            && !(Accessibility.isTrusted && FocusedFieldDetector.isTextInput)
+        if remoteCanvas || (AppState.shared.usesAxDetect(id) && FocusedFieldDetector.wantsPassthroughField) {
+            return localized ? VTLocalized("Passthrough") : "passthrough · remote desktop"
+        }
         let routing = AppState.shared.tapRouting(id)
         if routing.selection { return localized ? VTLocalized("Selection-replace") : "tap · selection-replace (Chromium)" }
         if routing.tap { return localized ? VTLocalized("Tap (backspace)") : "tap · backspace" }
@@ -2273,6 +2295,7 @@ final class TelexInputController: IMKInputController {
             "Unknown apps → safe channel: \(onOff(s.safeUnknownApps))",
             "Field verdict: selection=\(FocusedFieldDetector.wantsSelection ? "yes" : "no")"
                 + " marked=\(FocusedFieldDetector.wantsMarkedField ? "yes" : "no")"
+                + " passthrough=\(FocusedFieldDetector.wantsPassthroughField ? "yes" : "no")"
                 + " forcedMarked=\(fieldForcedMarked ? "yes" : "no")",
             "Web host: \(FocusedFieldDetector.debugLastHost ?? "—")",
             "AX role chain: [\(FocusedFieldDetector.debugRoleChain())]",

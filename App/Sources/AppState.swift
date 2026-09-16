@@ -679,13 +679,14 @@ final class AppState: @unchecked Sendable {
 
     /// Applies the Accessibility + per-field gates to a wants snapshot. Pure, and
     /// LAZY on the externals — `trusted` costs a foreign lock (and a TCC refresh
-    /// kick), `wantsSelection`/`wantsMarkedField` cost detector reads; a key in a
-    /// plain in-place app must keep paying for NONE of them (exactly the laziness
-    /// the legacy per-mode getters had).
+    /// kick), `wantsSelection`/`wantsMarkedField`/`wantsPassthroughField` cost
+    /// detector reads; a key in a plain in-place app must keep paying for NONE of
+    /// them (exactly the laziness the legacy per-mode getters had).
     static func gateRouting(_ wants: TapWants,
                             trusted: () -> Bool,
                             wantsSelection: () -> Bool,
                             wantsMarkedField: () -> Bool,
+                            wantsPassthroughField: () -> Bool = { false },
                             pageContentInPlace: Bool = false) -> TapRouting {
         guard wants.any, trusted() else { return TapRouting() }
         // Per-field resolution (browsers, maintainer decision 2026-08-06): PAGE
@@ -699,6 +700,8 @@ final class AppState: @unchecked Sendable {
         // from inside. This replaces the host allowlist with the policy itself.
         // Order: omnibox (toolbar) → selection/emptyReset dance, unchanged; a
         // marked-class field (Google Docs) falls through to IMKit marked text;
+        // a remote-desktop web canvas (Chrome Remote Desktop) falls through to
+        // IMKit which then passthroughs (local IME off — the guest IME composes);
         // everything else in the page → tap.
         //
         // WEBKIT CARVE-OUT (issue #44, 2026-08-13): every motivating bug above was
@@ -708,9 +711,11 @@ final class AppState: @unchecked Sendable {
         // screen unchanged; repro anotepad.com + reporter's bing.com). IMKit is the
         // one channel Apple's own engine is contractually good at, so WebKit page
         // content routes back to in-place (`pageContentInPlace`); the marked-class
-        // fallthrough (Google Docs in Safari) stays.
+        // fallthrough (Google Docs in Safari) stays. CRD in Safari is still
+        // passthrough — in-place into a scancode tunnel is the same fight.
         let perField = wants.sel == .perField
         let pageContent = perField && !wantsSelection()
+        if pageContent && wantsPassthroughField() { return TapRouting() }
         return TapRouting(
             tap: wants.tap || (pageContent && !wantsMarkedField() && !pageContentInPlace),
             selection: wants.sel == .yes || (perField && !pageContent),
@@ -752,6 +757,7 @@ final class AppState: @unchecked Sendable {
                                 trusted: { Accessibility.isTrusted },
                                 wantsSelection: { FocusedFieldDetector.wantsSelection },
                                 wantsMarkedField: { FocusedFieldDetector.wantsMarkedField },
+                                wantsPassthroughField: { FocusedFieldDetector.wantsPassthroughField },
                                 // The per-field verdict belongs to the focused CLIENT —
                                 // a cheap Set lookup, no laziness needed.
                                 pageContentInPlace: Self.webKitBrowsers.contains(bundleID ?? front ?? ""))

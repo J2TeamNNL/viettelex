@@ -15,6 +15,8 @@ final class ClientPolicyTests: XCTestCase {
             "com.teamviewer.TeamViewer",
             "com.realvnc.vncviewer",
             "com.nulana.remotixmac",
+            "com.carriez.rustdesk",
+            "com.philandro.anydesk",
         ]
         for id in rdpApps {
             XCTAssertTrue(ClientPolicy.isRemoteDesktop(id), "should be RDP: \(id)")
@@ -30,5 +32,50 @@ final class ClientPolicyTests: XCTestCase {
         for id in normal {
             XCTAssertFalse(ClientPolicy.isRemoteDesktop(id), "should NOT be RDP: \(id ?? "nil")")
         }
+    }
+
+    func testChromeRemoteDesktopPWABundleIsForcePassthrough() {
+        // "Open as window" / PWA ids embed the Chrome App / extension id.
+        XCTAssertTrue(ClientPolicy.isRemoteDesktop(
+            "com.google.Chrome.app.Default-inomeogfingihgjfjlpeplalcfajhgai"))
+        XCTAssertTrue(ClientPolicy.isRemoteDesktop(
+            "com.google.Chrome.app.gbchcmhmhahfdphkhkmpfmiifomcnacc"))
+        XCTAssertTrue(ClientPolicy.isChromeRemoteDesktopApp(
+            "com.microsoft.edgemac.app.inomeogfingihgjfjlpeplalcfajhgai"))
+        // Ordinary Chrome must keep axDetect — CRD tabs are URL-matched, not bundle-matched.
+        XCTAssertFalse(ClientPolicy.isChromeRemoteDesktopApp("com.google.Chrome"))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktop("com.google.Chrome"))
+    }
+
+    func testChromeRemoteDesktopWebURLIsPassthrough() {
+        XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://remotedesktop.google.com/access")))
+        XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://remotedesktop.google.com/support")))
+        XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://www.remotedesktop.google.com/")))
+        XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://remotedesktop.corp.google.com/access")))
+        XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "chrome-extension://inomeogfingihgjfjlpeplalcfajhgai/index.html")))
+        XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "chrome-extension://gbchcmhmhahfdphkhkmpfmiifomcnacc/main.html")))
+    }
+
+    func testChromeRemoteDesktopURLDoesNotOverMatch() {
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://docs.google.com/document/d/abc/edit")))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://google.com/")))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://fakeremotedesktop.google.com/")))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://remotedesktop.google.com.evil.example/")))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "https://evil.example/remotedesktop.google.com")))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/")))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(nil))
+        XCTAssertFalse(ClientPolicy.isRemoteDesktopURL(URL(string: "https://example.com/")))
     }
 }

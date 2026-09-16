@@ -87,6 +87,7 @@ final class PerfAuditTests: XCTestCase {
         defer { Accessibility.testTrustOverride = nil }
         FocusedFieldDetector._testSetCached(false)
         FocusedFieldDetector._testSetMarked(false)
+        FocusedFieldDetector._testSetPassthrough(false)
         let c = TelexInputController()
         // Bản snapshot (localized: false) phải GIỮ TIẾNG ANH + nêu rõ kênh, để bug
         // report grep được bất kể ngôn ngữ UI của người báo.

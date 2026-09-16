@@ -222,6 +222,43 @@ final class MarkedFieldURLTests: XCTestCase {
     }
 }
 
+// Browser-hosted remote desktop (Chrome Remote Desktop): the page forwards raw
+// scancodes to the guest OS. Local composition — especially tap Backspace+retype —
+// races the guest IME when both machines run VietTelex ("gõ có dấu cứ nhảy loạn").
+// Matched by URL because the bundle id is still com.google.Chrome.
+final class PassthroughFieldURLTests: XCTestCase {
+
+    func testChromeRemoteDesktopForcesPassthrough() {
+        XCTAssertTrue(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "https://remotedesktop.google.com/access")))
+        XCTAssertTrue(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "https://remotedesktop.google.com/support")))
+        XCTAssertTrue(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "https://www.remotedesktop.google.com/")))
+        XCTAssertTrue(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "chrome-extension://inomeogfingihgjfjlpeplalcfajhgai/")))
+    }
+
+    func testOtherHostsNeverForcePassthrough() {
+        XCTAssertFalse(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "https://docs.google.com/document/d/abc/edit")))
+        XCTAssertFalse(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "https://fakeremotedesktop.google.com/")))
+        XCTAssertFalse(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "https://remotedesktop.google.com.evil.example/")))
+        XCTAssertFalse(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "https://google.com/")))
+        XCTAssertFalse(FocusedFieldDetector.passthroughFieldURL(nil))
+    }
+
+    func testInvalidateResetsPassthroughVerdict() {
+        FocusedFieldDetector._testSetPassthrough(true)
+        XCTAssertTrue(FocusedFieldDetector.wantsPassthroughField)
+        FocusedFieldDetector.invalidate()
+        XCTAssertFalse(FocusedFieldDetector.wantsPassthroughField)
+    }
+}
+
 // Discord-web (2026-08-05): Lexical composer ignores replacementRange on VISIBLE text
 // while caret + AX say honored — undetectable by probes, marked costs double-Enter.
 // URL rule routes the field through the tap path (như Discord desktop từ ngày đầu).
@@ -229,7 +266,8 @@ final class TapFieldURLTests: XCTestCase {
     /// POLICY 2026-08-06: the per-host tap allowlist (discord.com, chat.zalo.me —
     /// `tapFieldURL`) is GONE. Page content routes to tap in gateRouting for EVERY
     /// site (see RoutingDecisionTests.testPageContentRoutesToTap); the detector only
-    /// carries the marked-class exception (Google Docs) and the diagnostic host.
+    /// carries the marked-class exception (Google Docs), the passthrough-class
+    /// exception (Chrome Remote Desktop), and the diagnostic host.
     /// This test pins the deletion so a future per-host allowlist has to argue with
     /// this comment: three sites broke the same contract-free channel in one week,
     /// and the Discord case proved the failure UNDETECTABLE from self-reports.

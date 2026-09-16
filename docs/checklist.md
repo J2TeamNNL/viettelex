@@ -68,6 +68,7 @@ Ma trận test tay theo app. Trạng thái: ☐ chưa test / ✅ pass / ❌ fail
 | 5.5 | ☐ Save dialog / rename trong Finder | Đúng dấu |
 | 5.6 | ☐ Stress 500 phím/s (`swift Scripts/stress-typing.swift`) vào TextEdit/terminal/Chrome | Text ra khớp 100% — lớp bug chỉ lộ khi gõ nhanh |
 | 5.7 | ☐ RDP/Windows App: focus session rồi rời sang app khác | Passthrough trong RDP; app kia gõ bình thường |
+| 5.8 | ☐ Chrome Remote Desktop (`remotedesktop.google.com`): cả 2 máy cài VietTelex | Máy local passthrough (không Backspace+retype); máy remote gõ dấu bình thường, con trỏ không nhảy |
 
 ---
 

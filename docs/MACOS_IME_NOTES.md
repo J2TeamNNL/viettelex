@@ -430,6 +430,24 @@ Tổng quát: gặp report "shortcut chết trong app X khi bật VietTelex" →
 "Simple Telex có dính không?" trước khi đào code. App Qt (Flameshot, OBS, VLC,
 qBittorrent, Telegram bản Qt…) là ứng viên hàng đầu của lớp này.
 
+## Hai VietTelex trên Chrome Remote Desktop — local phải tắt (2026-09-16)
+
+Triệu chứng: remote bằng **Chrome Remote Desktop** (`remotedesktop.google.com`),
+cả máy đang ngồi gõ lẫn máy bị điều khiển đều cài VietTelex → gõ có dấu con trỏ
+nhảy loạn.
+
+Không phải editor web hỏng `replacementRange`. Chrome (axDetect) coi canvas CRD
+là page content → **tap Backspace+retype**. CRD bắt những phím đó (kể cả ⌫
+synthetic) gửi scancode sang guest; VietTelex bên guest cũng compose. Hai bộ gõ
+cùng sửa một dòng.
+
+Native RDP (Windows App, Screen Sharing, AnyDesk…) đã passthrough theo bundle id.
+CRD không có bundle riêng — vẫn `com.google.Chrome` — nên phải dò **URL web area**
+(`ClientPolicy.isRemoteDesktopURL`) rồi passthrough cả tap lẫn IMKit, để chỉ IME
+máy remote gõ. Ô omnibox của Chrome không đụng (vẫn selection-replace).
+
+Đừng "sửa" bằng cách pin cả Chrome sang passthrough: phá gõ tiếng Việt mọi tab.
+
 ## WebKit KHÔNG nuốt synthetic — nó bỏ event ĐẾN CÙNG LÚC (đo 2026-08-19)
 
 Sửa lại hiểu biết từ #44/#47: comment cũ ghi "Safari/WebKit macOS 26 nuốt synthetic
