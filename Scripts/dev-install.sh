@@ -39,12 +39,16 @@ ditto "$APP" "$DEST"
 # ký bản build ngay sau khi cài, rồi liệt kê nếu còn bản lạ để dọn tay bằng
 # lsregister -u <path>. Không fail: bản cài đã xong. (Port vtx PR#16/#17.)
 LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-"$LSREG" -u "$APP" 2>/dev/null || true
-registered=$("$LSREG" -dump 2>/dev/null | grep -E '^path:.*/VietTelex\.app \(0x')
-if [ "$(printf '%s\n' "$registered" | grep -c .)" -ne 1 ]; then
-  echo "  NOTE: LaunchServices có nhiều hơn 1 bản VietTelex.app đăng ký — dọn bản thừa bằng: $LSREG -u <path>"
-  printf '%s\n' "$registered" | sed 's/^/    /'
-fi
+# Huỷ đăng ký MỌI bản ngoài $DEST, không chỉ bản build của script: một vòng
+# xcodebuild build+test là DerivedData Debug/Release + build/Release + bản cũ trong
+# ~/Downloads quay lại ngay (đo 16/09/2026 trên máy maintainer) — cảnh báo suông sẽ
+# thành nhiễu. -u chỉ xoá bản ghi LaunchServices, không đụng file.
+"$LSREG" -dump 2>/dev/null | grep -E '^path:.*/VietTelex\.app \(0x' \
+  | sed -E 's/^path: *//; s/ \(0x[0-9a-f]+\)$//' \
+  | while IFS= read -r reg; do
+      [ "$reg" = "$DEST" ] && continue
+      "$LSREG" -u "$reg" >/dev/null 2>&1 && echo "  lsregister -u (bản thừa): $reg"
+    done
 
 # The keyboard menu is drawn by TextInputMenuAgent, which keeps an IMK
 # connection to the OLD (now dead) IME process. Without this restart the
