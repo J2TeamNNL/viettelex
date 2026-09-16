@@ -39,6 +39,24 @@ final class BoundaryRepostTests: XCTestCase {
     /// semantics in apps that track key state).
     // MARK: Field 19/08/2026 — "thử xem"+Enter trên TikTok post ra mỗi "thử"
 
+    func testUntrustedMarkedReturnFoldsANewlineIntoTheCommit() {
+        XCTAssertEqual(
+            TelexInputController.markedCommitNewlineSuffix(newlineKey: true, marked: true, trusted: false),
+            "\n")
+        // Trusted marked still re-posts the real Return (chat "send"); don't also
+        // inject a newline or the field gets two breaks.
+        XCTAssertEqual(
+            TelexInputController.markedCommitNewlineSuffix(newlineKey: true, marked: true, trusted: true),
+            "")
+        XCTAssertEqual(
+            TelexInputController.markedCommitNewlineSuffix(newlineKey: true, marked: false, trusted: false),
+            "")
+        // Tab/Esc must not become a line break.
+        XCTAssertEqual(
+            TelexInputController.markedCommitNewlineSuffix(newlineKey: false, marked: true, trusted: false),
+            "")
+    }
+
     func testMarkedWebEditorDelaysTheRepost() {
         // Web editor ở lớp marked (Docs canvas, comment box TikTok) áp commit vào
         // model JS BẤT ĐỒNG BỘ → Enter re-post ngay lập tức "gửi" với text cũ.
