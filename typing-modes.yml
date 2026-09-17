@@ -83,6 +83,12 @@ com.apple.appkit.xpc.openAndSavePanelService: inPlace
 # (issue #55, 17/08/2026: "Haf tieen" nguyên xi trong ô rename của Preview).
 com.apple.appkit.xpc.documentPopoverViewService: inPlace
 com.apple.SafariPlatformSupport.Helper: inPlace
+# Safari Web App ("Thêm vào Dock" — Gemini, ChatGPT, Notion…): bundle id có UUID
+# RIÊNG cho từng web app (com.apple.Safari.WebApp.<UUID>) nên không bao giờ khớp
+# rule cố định → rơi vào "app lạ → kênh an toàn" = tap, và WebKit thì NUỐT synthetic
+# burst của tap (lớp #44/#47) → gõ "thêm" ra "themee" (issue #85, 17/09/2026, app
+# Gemini). Wildcard: mọi web app của Safari đi in-place như nội dung trang Safari.
+com.apple.Safari.WebApp.*: inPlace
 com.robinhood.release.Money: inPlace
 com.relaykey.client: inPlace
 com.westbridge.stremio5-mac: inPlace

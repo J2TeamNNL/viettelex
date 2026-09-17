@@ -79,6 +79,22 @@ final class BundledTypingModesTests: XCTestCase {
         }
     }
 
+    // MARK: Safari Web App (issue #85, 17/09/2026) — bundle id UUID riêng từng app
+    func testSafariWebAppsResolveToInPlaceByWildcard() {
+        // "Thêm vào Dock" tạo com.apple.Safari.WebApp.<UUID>: không rule cố định nào
+        // khớp → app lạ → tap, mà WebKit nuốt synthetic burst (lớp #44/#47) → "thêm"
+        // ra "themee". Wildcard đưa mọi web app Safari về in-place như trang Safari.
+        for id in ["com.apple.Safari.WebApp.B6A3DAD6-6475-436E-B0E3-979D88F0FB2B",
+                   "com.apple.Safari.WebApp.00000000-0000-4000-8000-000000000000"] {
+            XCTAssertEqual(AppState.wildcardMode(id), .inPlace, id)
+            XCTAssertEqual(AppState.shared.autoResolvedMode(id), .inPlace, id)
+            XCTAssertFalse(AppState.shared.tapRouting(id).tapDefer, id)
+        }
+        // Không lan sang Safari thật (per-field) hay PWA của Chrome (Chromium: tap).
+        XCTAssertEqual(AppState.shared.autoResolvedMode("com.apple.Safari"), .axDetect)
+        XCTAssertNil(AppState.wildcardMode("com.apple.SafariX.WebApp.abc"))
+    }
+
     // MARK: Spotlight redesign macOS 26.4+/27 ("Campo") — client id riêng
     func testSpotlightCampoResolvesToInPlaceLikeSpotlight() throws {
         // Field report email 16/09/2026 ("lỗi gõ trên spotlight, macOS 27"): IMK báo
