@@ -442,9 +442,16 @@ synthetic) gửi scancode sang guest; VietTelex bên guest cũng compose. Hai b�
 cùng sửa một dòng.
 
 Native RDP (Windows App, Screen Sharing, AnyDesk…) đã passthrough theo bundle id.
-CRD không có bundle riêng — vẫn `com.google.Chrome` — nên phải dò **URL web area**
-(`ClientPolicy.isRemoteDesktopURL`) rồi passthrough cả tap lẫn IMKit, để chỉ IME
-máy remote gõ. Ô omnibox của Chrome không đụng (vẫn selection-replace).
+CRD tab thường không có bundle riêng — vẫn `com.google.Chrome` — nên phải dò
+**URL web area** (`ClientPolicy.isRemoteDesktopURL`) rồi passthrough cả tap lẫn
+IMKit, để chỉ IME máy remote gõ. Ô omnibox của Chrome không đụng (vẫn
+selection-replace).
+
+PWA / "Install app" thì **có** bundle riêng
+(`com.google.Chrome.app.cmkncekebbebpfilplodngbpllndjkfo`, field 18/09/2026).
+Thiếu id đó trong `chromeRemoteDesktopExtensionIDs` thì cửa sổ PWA là app lạ →
+TAP (không scan URL) → `thuw` thành `tha`: unicode insert của tap post
+`virtualKey: 0` (`kVK_ANSI_A`), CRD chỉ chuyển scancode.
 
 Đừng "sửa" bằng cách pin cả Chrome sang passthrough: phá gõ tiếng Việt mọi tab.
 
@@ -587,7 +594,20 @@ Gỡ, rẻ → chắc:
 Không có bộ gõ bên thứ ba nào "không xung đột": Input Monitoring **không**
 bypass SI trên Ventura+ (OpenKey #179 xác nhận). VietTelex chỉ làm được: hiện
 icon `Vᵀ⃠` ngay lúc wake, gọi đúng tên 1Password kể cả khi ioreg ghi
-loginwindow, và reselect IME khi SI tắt (quit 1Password). Fix gốc là 1Password
+loginwindow, và reselect IME khi SI tắt (quit 1Password). `preferredHolderName`
+ưu tiên `proc_name` khi PID là loginwindow — `localizedName` bản Việt
+("Cửa sổ đăng nhập") từng làm hint rơi xuống "tắt Secure Keyboard Entry của
+Terminal" dù banner vẫn ghi loginwindow.
+
+Menu user-facing **không** hiện chữ `loginwindow` / PID (field 18/09/2026: banner
+"Disabled: Secure entry — loginwindow (PID 591)" không ai hiểu). Headline nói
+triệu chứng ("Không gõ được tiếng Việt sau khi ngủ"), hint nói cách gỡ, nút
+**Khoá màn hình ngay** gọi `SACLockScreenImmediate` — post ⌃⌘Q lúc SI đang bật
+bị nuốt. Icon ẩn khi `CGSSessionScreenIsLocked` (loginwindow giữ SI lúc khoá
+là đúng, không phải kẹt). PID vẫn ở tooltip + unified log để grep. KHÔNG tự
+khoá hộ khi nghi 1Password (⌃⌘Q đôi khi làm nặng hơn, #25015).
+
+Không có API nhả SI hộ. Fix gốc là 1Password
 phải `DisableSecureEventInput` khi mất focus / sau wake — họ claim đã vá ở
 18.12.26 ("keep Secure Input enabled longer than intended") nhưng field 07–09
 2026 vẫn còn.

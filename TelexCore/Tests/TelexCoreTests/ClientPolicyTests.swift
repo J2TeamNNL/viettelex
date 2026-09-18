@@ -42,6 +42,11 @@ final class ClientPolicyTests: XCTestCase {
             "com.google.Chrome.app.gbchcmhmhahfdphkhkmpfmiifomcnacc"))
         XCTAssertTrue(ClientPolicy.isChromeRemoteDesktopApp(
             "com.microsoft.edgemac.app.inomeogfingihgjfjlpeplalcfajhgai"))
+        // Official Chrome Remote Desktop PWA ("Install app") — field 18/09/2026.
+        XCTAssertTrue(ClientPolicy.isRemoteDesktop(
+            "com.google.Chrome.app.cmkncekebbebpfilplodngbpllndjkfo"))
+        XCTAssertTrue(ClientPolicy.isChromeRemoteDesktopApp(
+            "com.google.Chrome.app.cmkncekebbebpfilplodngbpllndjkfo"))
         // Ordinary Chrome must keep axDetect — CRD tabs are URL-matched, not bundle-matched.
         XCTAssertFalse(ClientPolicy.isChromeRemoteDesktopApp("com.google.Chrome"))
         XCTAssertFalse(ClientPolicy.isRemoteDesktop("com.google.Chrome"))
@@ -60,6 +65,8 @@ final class ClientPolicyTests: XCTestCase {
             URL(string: "chrome-extension://inomeogfingihgjfjlpeplalcfajhgai/index.html")))
         XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
             URL(string: "chrome-extension://gbchcmhmhahfdphkhkmpfmiifomcnacc/main.html")))
+        XCTAssertTrue(ClientPolicy.isRemoteDesktopURL(
+            URL(string: "chrome-extension://cmkncekebbebpfilplodngbpllndjkfo/index.html")))
     }
 
     func testChromeRemoteDesktopURLDoesNotOverMatch() {

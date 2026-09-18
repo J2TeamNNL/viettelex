@@ -204,6 +204,8 @@ final class AppStateRoutingTests: XCTestCase {
         XCTAssertEqual(s.autoResolvedMode("com.microsoft.rdc.macos"), .passthrough)  // ClientPolicy floor
         XCTAssertEqual(s.autoResolvedMode("com.google.Chrome.app.gbchcmhmhahfdphkhkmpfmiifomcnacc"),
                        .passthrough)  // CRD PWA — not Chrome axDetect
+        XCTAssertEqual(s.autoResolvedMode("com.google.Chrome.app.cmkncekebbebpfilplodngbpllndjkfo"),
+                       .passthrough)  // official CRD PWA (Install app)
         XCTAssertEqual(s.autoResolvedMode(unknownApp), .tap)   // policy 06/08: app lạ → tap
         XCTAssertNil(s.autoResolvedMode(nil))
         XCTAssertFalse(s.usesMarkedText(nil))
