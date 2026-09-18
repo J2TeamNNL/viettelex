@@ -167,11 +167,21 @@ final class AppSupportTests: XCTestCase {
         XCTAssertNil(SecureInputMonitor.revealTarget(.terminal))
         let sleepHint = SecureInputMonitor.hintText(.loginwindowWithPasswordManager("1Password"))
         XCTAssertTrue(sleepHint.contains("1Password"))
+        XCTAssertFalse(sleepHint.localizedCaseInsensitiveContains("loginwindow"),
+                       "user-facing 1Password hint must not say loginwindow")
         XCTAssertFalse(sleepHint.localizedCaseInsensitiveContains("Terminal"),
                        "sleep+1Password must not be diagnosed as Secure Keyboard Entry")
         let terminalHint = SecureInputMonitor.hintText(.terminal)
         XCTAssertTrue(terminalHint.contains("Terminal") || terminalHint.contains("iTerm"),
                       "iTerm/Terminal Secure Keyboard Entry hint must stay")
+        XCTAssertTrue(SecureInputMonitor.wantsLockScreen(.loginwindowStuck))
+        XCTAssertTrue(SecureInputMonitor.wantsLockScreen(.orphan))
+        XCTAssertFalse(SecureInputMonitor.wantsLockScreen(.loginwindowWithPasswordManager("1Password")),
+                       "locking the screen can make 1Password SI worse")
+        XCTAssertFalse(SecureInputMonitor.wantsLockScreen(.terminal))
+        XCTAssertFalse(SecureInputMonitor.wantsLockScreen(.generic))
+        XCTAssertFalse(SecureInputMonitor.screenIsLocked(),
+                       "unit tests run with the screen unlocked")
     }
 
     func testSecureInputPasswordManagerNameMatching() {
@@ -216,6 +226,19 @@ final class AppSupportTests: XCTestCase {
         let loginHint = SecureInputMonitor.hintText(.loginwindowStuck)
         XCTAssertFalse(loginHint.localizedCaseInsensitiveContains("Terminal"),
                        "loginwindow stuck must not be diagnosed as Secure Keyboard Entry")
+        XCTAssertFalse(loginHint.localizedCaseInsensitiveContains("loginwindow"),
+                       "user-facing copy must not say loginwindow")
+        XCTAssertTrue(loginHint.contains("⌃⌘Q")
+                        || loginHint.localizedCaseInsensitiveContains("lock")
+                        || loginHint.localizedCaseInsensitiveContains("khoá"),
+                      "hint must tell the user to lock the screen")
+        let headline = SecureInputMonitor.menuHeadline(.loginwindowStuck, holderName: "loginwindow")
+        XCTAssertFalse(headline.localizedCaseInsensitiveContains("loginwindow"))
+        XCTAssertFalse(headline.contains("PID"))
+        XCTAssertFalse(SecureInputMonitor.menuHeadline(.orphan, holderName: "Lark")
+            .localizedCaseInsensitiveContains("loginwindow"))
+        XCTAssertTrue(SecureInputMonitor.menuHeadline(.passwordManager("1Password"), holderName: nil)
+            .contains("1Password"))
     }
 
     func testBoundedDataEnforcesByteCap() async {

@@ -1835,12 +1835,13 @@ final class TelexInputController: IMKInputController {
         // "click status → copy debug snapshot" KHÔNG mất: nó chuyển xuống dòng
         // version bên dưới (click được ở mọi trạng thái).
         let statusTitle: String?
-        if let holder = SecureInputMonitor.shared.activeHolder {
+        if SecureInputMonitor.shared.activeHolder != nil {
             // Hiếm khi tới được đây (secure input thường đá selection sang ABC nên
             // menu này không mở được), nhưng ca "secure input tạm thời trong ô
-            // password mà VietTelex vẫn selected" thì thấy. Không click-action:
-            // thủ phạm là app khác, mình không tắt hộ được.
-            statusTitle = VTLocalized("Status: Blocked by Secure Input") + " — \(holder.label)"
+            // password mà VietTelex vẫn selected" thì thấy. Headline user-facing
+            // (không PID / loginwindow); PID nằm ở icon Vᵀ⃠ tooltip + log.
+            statusTitle = SecureInputMonitor.shared.blockedStatusTitle()
+                ?? VTLocalized("Status: Blocked by Secure Input")
         } else if !Accessibility.isTrusted {
             statusTitle = VTLocalized("Status: Permission needed")
         } else if TerminalTapController.shared.trustLooksStale {

@@ -597,7 +597,17 @@ icon `Vᵀ⃠` ngay lúc wake, gọi đúng tên 1Password kể cả khi ioreg g
 loginwindow, và reselect IME khi SI tắt (quit 1Password). `preferredHolderName`
 ưu tiên `proc_name` khi PID là loginwindow — `localizedName` bản Việt
 ("Cửa sổ đăng nhập") từng làm hint rơi xuống "tắt Secure Keyboard Entry của
-Terminal" dù banner vẫn ghi loginwindow. Fix gốc là 1Password
+Terminal" dù banner vẫn ghi loginwindow.
+
+Menu user-facing **không** hiện chữ `loginwindow` / PID (field 18/09/2026: banner
+"Disabled: Secure entry — loginwindow (PID 591)" không ai hiểu). Headline nói
+triệu chứng ("Không gõ được tiếng Việt sau khi ngủ"), hint nói cách gỡ, nút
+**Khoá màn hình ngay** gọi `SACLockScreenImmediate` — post ⌃⌘Q lúc SI đang bật
+bị nuốt. Icon ẩn khi `CGSSessionScreenIsLocked` (loginwindow giữ SI lúc khoá
+là đúng, không phải kẹt). PID vẫn ở tooltip + unified log để grep. KHÔNG tự
+khoá hộ khi nghi 1Password (⌃⌘Q đôi khi làm nặng hơn, #25015).
+
+Không có API nhả SI hộ. Fix gốc là 1Password
 phải `DisableSecureEventInput` khi mất focus / sau wake — họ claim đã vá ở
 18.12.26 ("keep Secure Input enabled longer than intended") nhưng field 07–09
 2026 vẫn còn.

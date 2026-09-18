@@ -13,9 +13,11 @@
 // Không chặn được (policy của OS — không có API nhả hộ, kẻo malware cũng làm
 // được), nhưng biến "không rõ nguyên nhân" thành "có tên thủ phạm" thì được, vì
 // PROCESS NÀY VẪN SỐNG khi bị mờ (IMKServer không bị kill):
-//  1. Icon menu bar TẠM THỜI chỉ hiện khi đang bị chặn, ghi rõ thủ phạm + PID,
-//     tự biến mất khi hết chặn. Gợi ý theo ĐÚNG bệnh (1Password sau sleep ≠
-//     Terminal Secure Keyboard Entry ≠ khoá mồ côi).
+//  1. Icon menu bar TẠM THỜI chỉ hiện khi đang bị chặn. Dòng user-facing nói
+//     TRIỆU CHỨNG + CÁCH GỠ (không hiện "loginwindow" / PID); PID vẫn ở tooltip
+//     + unified log để grep. loginwindow/orphan: nút "Khoá màn hình ngay"
+//     (SACLockScreenImmediate — synthesized ⌃⌘Q bị SI nuốt). 1Password sau
+//     sleep ≠ Terminal Secure Keyboard Entry ≠ khoá mồ côi.
 //  2. Transition ON/OFF ghi unified log (LUÔN — kể cả khi debugLogging off; sự kiện
 //     hiếm, không có text người dùng) + DebugLog ring.
 //  3. Dòng "Secure input:" trong debug snapshot (click Status: OK) và IMK menu.
@@ -27,6 +29,7 @@
 // lệ: trustPoll) vì lúc bị chặn thì chính là lúc KHÔNG có event nào tới được mình.
 
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 import IOKit
 import Darwin
@@ -264,10 +267,18 @@ final class SecureInputMonitor {
 
     // MARK: - Icon menu bar tạm thời
 
+    /// Dòng menu / IMK status: triệu chứng, không PID, không "loginwindow".
+    func blockedStatusTitle() -> String? {
+        guard let holder = activeHolder else { return nil }
+        return Self.menuHeadline(currentHintKind(holder: holder), holderName: holder.name)
+    }
+
     /// Chỉ tồn tại khi đang bị chặn: user nhìn lên là biết tại sao VietTelex mờ,
     /// không cần mở gì thêm. Biến mất là hết chuyện — không thêm icon thường trực.
+    /// Ẩn khi màn hình đang khoá thật: loginwindow GIỮ SI lúc đó là đúng, không
+    /// phải kẹt; hiện icon lúc ấy chỉ gây hoảng.
     private func updateStatusItem() {
-        guard let holder = activeHolder else {
+        guard let holder = activeHolder, !Self.screenIsLocked() else {
             if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
             statusItem = nil
             return
@@ -276,18 +287,27 @@ final class SecureInputMonitor {
         statusItem = item
         item.button?.title = "Vᵀ⃠"
         item.button?.toolTip = VTLocalized("Vietnamese typing is blocked (Secure Input)")
+            + "\n" + holder.label
         let menu = NSMenu()
-        let info = NSMenuItem(title: "Disabled: Secure entry — \(holder.label)",
+        let kind = currentHintKind(holder: holder)
+        let info = NSMenuItem(title: Self.menuHeadline(kind, holderName: holder.name),
                               action: nil, keyEquivalent: "")
         info.isEnabled = false
         menu.addItem(info)
 
-        let kind = currentHintKind(holder: holder)
         let hint = NSMenuItem(title: Self.hintText(kind), action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
 
-        if let pm = Self.revealTarget(kind) {
+        if Self.wantsLockScreen(kind) {
+            menu.addItem(.separator())
+            let lock = NSMenuItem(
+                title: VTLocalized("Lock Screen now"),
+                action: #selector(MenuActions.lockScreenNow(_:)),
+                keyEquivalent: "")
+            lock.target = MenuActions.shared
+            menu.addItem(lock)
+        } else if let pm = Self.revealTarget(kind) {
             menu.addItem(.separator())
             let reveal = NSMenuItem(
                 title: String(format: VTLocalized("Switch to %@ (then click away)"), pm),
@@ -299,16 +319,30 @@ final class SecureInputMonitor {
         item.menu = menu
     }
 
+    static func menuHeadline(_ kind: HintKind, holderName: String?) -> String {
+        switch kind {
+        case .loginwindowStuck:
+            return VTLocalized("Vietnamese typing is blocked after sleep")
+        case .orphan:
+            return VTLocalized("Vietnamese typing is blocked — keyboard lock is stuck")
+        case .passwordManager(let pm), .loginwindowWithPasswordManager(let pm):
+            return String(format: VTLocalized("Vietnamese typing is blocked by %@"), pm)
+        case .terminal, .generic:
+            return String(format: VTLocalized("Vietnamese typing is blocked by %@"),
+                          holderName ?? VTLocalized("an app"))
+        }
+    }
+
     static func hintText(_ kind: HintKind) -> String {
         switch kind {
         case .orphan:
-            return VTLocalized("That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in")
+            return VTLocalized("An app quit without releasing the keyboard lock — lock the screen (⌃⌘Q), then unlock; if that fails, log out and back in")
         case .passwordManager(let pm):
             return String(format: VTLocalized("%@ left Secure Input on — click its window then click away, or quit it"), pm)
         case .loginwindowWithPasswordManager(let pm):
-            return String(format: VTLocalized("loginwindow is listed, but %@ often holds Secure Input after sleep — click it then click away, or quit it"), pm)
+            return String(format: VTLocalized("%@ is usually holding the keyboard lock after sleep — click its window then click away, or quit it"), pm)
         case .loginwindowStuck:
-            return VTLocalized("loginwindow is holding Secure Input after sleep — lock the screen (⌃⌘Q) and unlock")
+            return VTLocalized("macOS is still locking the keyboard after sleep — lock the screen (⌃⌘Q), then unlock")
         case .terminal:
             return VTLocalized("If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”")
         case .generic:
@@ -323,6 +357,23 @@ final class SecureInputMonitor {
         default:
             return nil
         }
+    }
+
+    /// loginwindow kẹt / khoá mồ côi: gỡ field-verified là khoá màn hình rồi mở
+    /// lại. KHÔNG khoá hộ khi nghi 1Password — ⌃⌘Q đôi khi làm nặng hơn (#25015).
+    static func wantsLockScreen(_ kind: HintKind) -> Bool {
+        switch kind {
+        case .loginwindowStuck, .orphan: return true
+        default: return false
+        }
+    }
+
+    /// `CGSSessionScreenIsLocked` chỉ có khi đang khoá; vắng mặt = đang mở.
+    static func screenIsLocked() -> Bool {
+        guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        if let locked = dict["CGSSessionScreenIsLocked"] as? Bool { return locked }
+        if let n = dict["CGSSessionScreenIsLocked"] as? NSNumber { return n.boolValue }
+        return false
     }
 
     /// Đưa password manager lên trước — workaround field-verified: focus rồi unfocus
@@ -345,10 +396,32 @@ final class SecureInputMonitor {
         }
     }
 
+    /// Gỡ loginwindow-kẹt / khoá mồ côi: nhờ loginwindow chiếm SI lúc lock rồi nhả
+    /// lúc unlock. Phải gọi SACLockScreenImmediate — post ⌃⌘Q lúc SI đang bật bị
+    /// nuốt. Không có public API tương đương.
+    static func lockScreen() {
+        typealias LockFn = @convention(c) () -> Void
+        let path = "/System/Library/PrivateFrameworks/login.framework/Versions/Current/login"
+        guard let handle = dlopen(path, RTLD_NOW) else {
+            Signposts.log.error("lock-screen: dlopen login.framework failed")
+            return
+        }
+        guard let sym = dlsym(handle, "SACLockScreenImmediate") else {
+            Signposts.log.error("lock-screen: SACLockScreenImmediate missing")
+            return
+        }
+        Signposts.log.notice("lock-screen: SACLockScreenImmediate")
+        DebugLog.log("lock-screen: SACLockScreenImmediate")
+        unsafeBitCast(sym, to: LockFn.self)()
+    }
+
     private final class MenuActions: NSObject {
         static let shared = MenuActions()
         @objc func revealPasswordManager(_ sender: Any) {
             SecureInputMonitor.activatePasswordManager()
+        }
+        @objc func lockScreenNow(_ sender: Any) {
+            SecureInputMonitor.lockScreen()
         }
     }
 
