@@ -370,7 +370,15 @@ final class SecureInputMonitor {
 
     /// `CGSSessionScreenIsLocked` chỉ có khi đang khoá; vắng mặt = đang mở.
     static func screenIsLocked() -> Bool {
-        guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        screenIsLocked(session: CGSessionCopyCurrentDictionary() as? [String: Any])
+    }
+
+    /// Phần đọc dict tách riêng cho test: trạng thái khoá THẬT của máy không phải
+    /// thứ test được phép giả định — bản đầu assert `screenIsLocked() == false` và
+    /// suite đỏ ngay khi maintainer rời máy lúc đang chạy test (18/09/2026,
+    /// CGSSessionScreenIsLocked = 1). macOS trả Bool hoặc NSNumber tuỳ bản.
+    static func screenIsLocked(session: [String: Any]?) -> Bool {
+        guard let dict = session else { return false }
         if let locked = dict["CGSSessionScreenIsLocked"] as? Bool { return locked }
         if let n = dict["CGSSessionScreenIsLocked"] as? NSNumber { return n.boolValue }
         return false

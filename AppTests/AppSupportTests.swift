@@ -180,8 +180,18 @@ final class AppSupportTests: XCTestCase {
                        "locking the screen can make 1Password SI worse")
         XCTAssertFalse(SecureInputMonitor.wantsLockScreen(.terminal))
         XCTAssertFalse(SecureInputMonitor.wantsLockScreen(.generic))
-        XCTAssertFalse(SecureInputMonitor.screenIsLocked(),
-                       "unit tests run with the screen unlocked")
+        // KHÔNG assert trạng thái khoá thật của máy: bản đầu của test này đỏ ngay
+        // khi maintainer rời máy lúc suite đang chạy (18/09/2026). Test cái parser.
+        XCTAssertFalse(SecureInputMonitor.screenIsLocked(session: nil))
+        XCTAssertFalse(SecureInputMonitor.screenIsLocked(session: [:]),
+                       "khoá vắng mặt = màn hình đang mở")
+        XCTAssertTrue(SecureInputMonitor.screenIsLocked(
+            session: ["CGSSessionScreenIsLocked": true]))
+        XCTAssertTrue(SecureInputMonitor.screenIsLocked(
+            session: ["CGSSessionScreenIsLocked": NSNumber(value: 1)]),
+                      "macOS có bản trả NSNumber")
+        XCTAssertFalse(SecureInputMonitor.screenIsLocked(
+            session: ["CGSSessionScreenIsLocked": NSNumber(value: 0)]))
     }
 
     func testSecureInputPasswordManagerNameMatching() {
