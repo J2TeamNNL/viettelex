@@ -616,6 +616,10 @@ enum FocusedFieldDetector {
     /// Browser-hosted remote desktop (Chrome Remote Desktop): the page is a scancode
     /// tunnel, so the local IME must stay off. Cache-only like `cachedMarked`.
     private static var cachedPassthrough = false
+    /// Ô lưới có INLINE AUTOCOMPLETE giữ sẵn vùng chọn (Google Sheets): ⌫ của tap xoá
+    /// vùng chọn thay vì ký tự → lệch mô hình. Cần U+202F dance (.emptyReset) như
+    /// omnibox Chromium/Excel. Cache-only như `cachedMarked`.
+    private static var cachedEmptyReset = false
 
     /// First web-area host seen by the last scan — DIAGNOSTIC ONLY, never read by any
     /// routing decision. Lets a debug log line name the actual site when something
@@ -649,6 +653,7 @@ enum FocusedFieldDetector {
             // Same for CRD: one composed key into a remote session (stale default)
             // is milder than passthrough-ing the first key of every Chrome tab.
             cachedPassthrough = false
+            cachedEmptyReset = false
             cachedHost = nil
             lastCheckNs = 0
             stableRuns = 0
@@ -701,6 +706,13 @@ enum FocusedFieldDetector {
             lastCheckNs = DispatchTime.now().uptimeNanoseconds
         }
     }
+    /// Same seam for the grid-autocomplete (emptyReset) verdict.
+    static func _testSetEmptyReset(_ value: Bool) {
+        lock.withLock {
+            cachedEmptyReset = value
+            lastCheckNs = DispatchTime.now().uptimeNanoseconds
+        }
+    }
     /// Same seam for the diagnostic-only host string.
     static func _testSetHost(_ value: String?) {
         lock.withLock {
@@ -719,6 +731,10 @@ enum FocusedFieldDetector {
     /// Remote Desktop). Cache-only: refreshes piggyback on `wantsSelection`.
     static var wantsPassthroughField: Bool { lock.withLock { cachedPassthrough } }
 
+    /// True → ô lưới web có inline autocomplete (Google Sheets): tap phải dùng
+    /// U+202F dance. Cache-only: refresh đi kèm `wantsSelection`.
+    static var wantsEmptyResetField: Bool { lock.withLock { cachedEmptyReset } }
+
 
     /// Diagnostic-only: the host last seen for the focused field, or nil (not a web
     /// area, or the AX read failed). Never consulted by routing — see `cachedHost`.
@@ -736,7 +752,7 @@ enum FocusedFieldDetector {
         if stale {
             scanQueue.async {
                 pokeChromiumAX()
-                let (wants, marked, passthrough, host) = scan()
+                let (wants, marked, passthrough, emptyReset, host) = scan()
                 // Diagnostic (debug logging only, and off the keystroke path): WHY this
                 // verdict. A browser whose AX tree we cannot read falls back to
                 // selection-replace for EVERY field — including page content, where each
@@ -747,14 +763,16 @@ enum FocusedFieldDetector {
                 // the site for a future report on an unrecognized editor (2026-08-06).
                 if AppState.shared.debugLogging {
                     let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
-                    DebugLog.log("field-scan \(front): wantsSelection=\(wants) marked=\(marked) passthrough=\(passthrough) host=\(host ?? "?") roles=[\(roleChain())]")
+                    DebugLog.log("field-scan \(front): wantsSelection=\(wants) marked=\(marked) passthrough=\(passthrough) emptyReset=\(emptyReset) host=\(host ?? "?") roles=[\(roleChain())]")
                 }
                 lock.withLock {
                     stableRuns = (wants == cached && marked == cachedMarked
-                                  && passthrough == cachedPassthrough) ? stableRuns + 1 : 0
+                                  && passthrough == cachedPassthrough
+                                  && emptyReset == cachedEmptyReset) ? stableRuns + 1 : 0
                     cached = wants
                     cachedMarked = marked
                     cachedPassthrough = passthrough
+                    cachedEmptyReset = emptyReset
                     cachedHost = host
                     lastCheckNs = DispatchTime.now().uptimeNanoseconds
                     refreshing = false
@@ -907,8 +925,11 @@ enum FocusedFieldDetector {
         return roles.joined(separator: "→")
     }
 
-    private static func scan() -> (selection: Bool, marked: Bool, passthrough: Bool, host: String?) {
-        guard let focused = focusedElementForScan() else { return (selection: true, marked: false, passthrough: false, host: nil) }
+    private static func scan() -> (selection: Bool, marked: Bool, passthrough: Bool,
+                                   emptyReset: Bool, host: String?) {
+        guard let focused = focusedElementForScan() else {
+            return (selection: true, marked: false, passthrough: false, emptyReset: false, host: nil)
+        }
         // NO role short-circuit on the focused element: an AXComboBox/AXSearchField
         // rule used to run BEFORE the ancestor walk ("a search box inside a web area
         // is autocomplete-prone"), but field evidence killed it — youtube.com's search
@@ -933,6 +954,7 @@ enum FocusedFieldDetector {
         var sawWebArea = false
         var marked = false
         var passthrough = false
+        var emptyReset = false
         // First web-area host seen — DIAGNOSTIC ONLY (never used for routing), so a
         // "stale caret" report names the actual site instead of just
         // "com.google.Chrome" (added after the 2026-08-06 unidentified-tab report).
@@ -959,19 +981,23 @@ enum FocusedFieldDetector {
                 if verdict {
                     // Toolbar: decisive only BEFORE any web area (an omnibox is never
                     // inside page content — above one, it's just browser chrome).
-                    if !sawWebArea { return (selection: true, marked: false, passthrough: false, host: nil) }
+                    if !sawWebArea {
+                        return (selection: true, marked: false, passthrough: false,
+                                emptyReset: false, host: nil)
+                    }
                 } else {
                     sawWebArea = true
-                    if !marked || !passthrough {
+                    if !marked || !passthrough || !emptyReset {
                         var urlRef: CFTypeRef?
                         if AXUIElementCopyAttributeValue(element, "AXURL" as CFString, &urlRef) == .success {
                             let url = urlRef as? URL
                             if host == nil { host = url?.host }
                             if !passthrough { passthrough = Self.passthroughFieldURL(url) }
                             if !marked { marked = Self.markedFieldURL(url) }
+                            if !emptyReset { emptyReset = Self.emptyResetFieldURL(url) }
                         }
                     }
-                    if marked || passthrough { break }   // verdicts settled
+                    if marked || passthrough || emptyReset { break }   // verdicts settled
                 }
             }
             var parentRef: CFTypeRef?
@@ -980,12 +1006,15 @@ enum FocusedFieldDetector {
             else { break }
             element = parent as! AXUIElement
         }
-        if sawWebArea { return (selection: false, marked: marked, passthrough: passthrough, host: host) }
+        if sawWebArea {
+            return (selection: false, marked: marked, passthrough: passthrough,
+                    emptyReset: emptyReset, host: host)
+        }
         // No decisive ancestor. A walk that DIED ON THE HOP BUDGET is page content, not
         // chrome (see exhaustedMeansPageContent); one that reached the top without a
         // web area is genuinely unknown → selection, the historical safe default.
         return (selection: !Self.exhaustedMeansPageContent(hops: hops),
-                marked: false, passthrough: false, host: nil)
+                marked: false, passthrough: false, emptyReset: false, host: nil)
     }
 
     /// Pure: does this web-area URL host an editor that must be typed with marked
@@ -1003,6 +1032,20 @@ enum FocusedFieldDetector {
         // Docs/TikTok (editor áp edit theo model JS riêng).
         if host == "antigravity.google.com" { return true }
         return host == "tiktok.com" || host.hasSuffix(".tiktok.com")
+    }
+
+    /// Pure: does this web-area URL host a GRID with inline autocomplete, where a
+    /// plain ⌫ hits the suggestion's selection instead of a typed character? Google
+    /// Sheets suggests a whole column value after the first letter and keeps the rest
+    /// SELECTED, so tap's Backspace+retype desynced: gõ "User " ra "UUser " (field
+    /// 18/09/2026 — log cho thấy biên từ phát bs=2 ins=4 trong khi màn hình còn dư
+    /// chữ "U"). Same cure as the Chromium omnibox and Excel: .emptyReset chèn U+202F
+    /// huỷ gợi ý, xoá, rồi gõ lại. Docs (/document) vẫn là lớp marked — xem
+    /// `markedFieldURL`. Widen only with field evidence.
+    static func emptyResetFieldURL(_ url: URL?) -> Bool {
+        guard let url, let host = url.host?.lowercased() else { return false }
+        guard host == "docs.google.com" else { return false }
+        return url.path.hasPrefix("/spreadsheets")
     }
 
     /// Pure: does this web-area URL host a remote-desktop canvas that must NOT be
@@ -2029,6 +2072,19 @@ final class TerminalTapController {
         visible && !(manualPin == .selection || manualPin == .tap || manualPin == .emptyReset)
     }
 
+    /// Emit mode cho một phím mà routing đã quyết là của TAP; nil = tap không giữ
+    /// phím này (IMKit lo, xem nhánh edge-tap/native bên dưới trong callback).
+    /// Thứ tự LÀ chính sách: omnibox (selection, browser → U+202F) trước, rồi
+    /// emptyReset theo ô (Excel, ô Google Sheets — field 18/09/2026 "User " ra
+    /// "UUser "), rồi ⌫ thuần. Pure để test pin được cả chuỗi
+    /// URL → verdict → routing → emit mode.
+    static func emitMode(for routing: AppState.TapRouting, selectionMode: TapEmit) -> TapEmit? {
+        if routing.selection { return selectionMode }
+        if routing.emptyReset { return .emptyReset }
+        if routing.tap { return .backspace }
+        return nil
+    }
+
     // Throttle for the imeActive self-heal reconcile (see handle()). TAP-thread
     // confined (only touched inside the callback).
     private var lastReconcileNs: UInt64 = 0
@@ -2474,7 +2530,8 @@ final class TerminalTapController {
             case .emptyReset: emitMode = .emptyReset
             default: engine.reset(); return pass
             }
-        } else if tapKeyRouting.selection {
+        } else if let mode = Self.emitMode(for: tapKeyRouting,
+                                          selectionMode: AppState.shared.selectionEmitMode(id)) {
             // Chromium omnibox: inline autocomplete keeps the suggestion SELECTED to the
             // right of the caret, so a Shift+Left select-overtype (.selection) is offset
             // just like a plain Backspace — the first Shift+Left shrinks the suggestion
@@ -2485,11 +2542,7 @@ final class TerminalTapController {
             // dismiss the suggestion, delete it + the stale chars, then retype. Spotlight
             // and manual .selection pins (no such inline-autocomplete selection) stay on
             // .selection. Field-verified in a live omnibox 2026-07-24.
-            emitMode = AppState.shared.selectionEmitMode(id)
-        } else if tapKeyRouting.emptyReset {
-            emitMode = .emptyReset
-        } else if tapKeyRouting.tap {
-            emitMode = .backspace
+            emitMode = mode
         } else if !SyntheticKeyboard.queueDrained(),
                   AppState.shared.manualMode(id) == .inPlace {
             // EDGE-TAP ordering guard (06/08/2026): the IMKit controller just posted

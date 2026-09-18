@@ -709,6 +709,7 @@ final class AppState: @unchecked Sendable {
                             wantsSelection: () -> Bool,
                             wantsMarkedField: () -> Bool,
                             wantsPassthroughField: () -> Bool = { false },
+                            wantsEmptyResetField: () -> Bool = { false },
                             pageContentInPlace: Bool = false) -> TapRouting {
         guard wants.any, trusted() else { return TapRouting() }
         // Per-field resolution (browsers, maintainer decision 2026-08-06): PAGE
@@ -738,6 +739,14 @@ final class AppState: @unchecked Sendable {
         let perField = wants.sel == .perField
         let pageContent = perField && !wantsSelection()
         if pageContent && wantsPassthroughField() { return TapRouting() }
+        // Ô lưới web có inline autocomplete (Google Sheets): ⌫ thuần của tap xoá vùng
+        // chọn gợi ý thay vì ký tự → "User " ra "UUser " (field 18/09/2026). Dùng U+202F
+        // dance như omnibox Chromium/Excel. CHỈ cho Chromium: WebKit đã có carve-out
+        // in-place (insertText(replacementRange:) không cần ⌫ nên không đụng vùng chọn),
+        // và Sheets trong Safari chưa có report nào.
+        if pageContent && !pageContentInPlace && wantsEmptyResetField() {
+            return TapRouting(tap: false, selection: false, emptyReset: true)
+        }
         return TapRouting(
             tap: wants.tap || (pageContent && !wantsMarkedField() && !pageContentInPlace),
             selection: wants.sel == .yes || (perField && !pageContent),
@@ -780,6 +789,7 @@ final class AppState: @unchecked Sendable {
                                 wantsSelection: { FocusedFieldDetector.wantsSelection },
                                 wantsMarkedField: { FocusedFieldDetector.wantsMarkedField },
                                 wantsPassthroughField: { FocusedFieldDetector.wantsPassthroughField },
+                                wantsEmptyResetField: { FocusedFieldDetector.wantsEmptyResetField },
                                 // The per-field verdict belongs to the focused CLIENT —
                                 // a cheap Set lookup, no laziness needed.
                                 pageContentInPlace: Self.webKitBrowsers.contains(bundleID ?? front ?? ""))

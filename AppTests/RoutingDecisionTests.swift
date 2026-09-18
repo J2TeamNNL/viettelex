@@ -146,6 +146,68 @@ final class RoutingDecisionTests: XCTestCase {
         XCTAssertEqual(r, R(), "CRD wins over the WebKit in-place carve-out")
     }
 
+    /// Khâu cuối của chuỗi Sheets: routing.emptyReset ⇒ tap emit U+202F dance.
+    /// (URL→verdict: EmptyResetFieldURLTests; verdict→routing: test dưới;
+    /// emit→dance: usesPlaceholderDance trong FieldVerdictCacheTests.)
+    func testTapEmitModeFollowsRouting() {
+        typealias C = TerminalTapController
+        // Ô Sheets / Excel: emptyReset, KHÔNG phải ⌫ thuần.
+        XCTAssertEqual(C.emitMode(for: R(tap: false, selection: false, emptyReset: true),
+                                  selectionMode: .emptyReset), .emptyReset)
+        // Omnibox: theo selectionEmitMode của app (browser → emptyReset, pin → selection).
+        XCTAssertEqual(C.emitMode(for: R(tap: false, selection: true, emptyReset: false),
+                                  selectionMode: .emptyReset), .emptyReset)
+        XCTAssertEqual(C.emitMode(for: R(tap: false, selection: true, emptyReset: false),
+                                  selectionMode: .selection), .selection)
+        // Selection thắng emptyReset (omnibox chốt trước ô lưới).
+        XCTAssertEqual(C.emitMode(for: R(tap: true, selection: true, emptyReset: true),
+                                  selectionMode: .selection), .selection)
+        // Terminal/Electron: ⌫ thuần.
+        XCTAssertEqual(C.emitMode(for: R(tap: true, selection: false, emptyReset: false),
+                                  selectionMode: .selection), .backspace)
+        // emptyReset thắng tap: ô Sheets vẫn phải dance dù page content cũng muốn tap.
+        XCTAssertEqual(C.emitMode(for: R(tap: true, selection: false, emptyReset: true),
+                                  selectionMode: .selection), .emptyReset)
+        // Không routing nào → tap không giữ phím (IMKit lo).
+        XCTAssertNil(C.emitMode(for: R(), selectionMode: .selection))
+    }
+
+    func testPageContentSheetsRoutesToEmptyResetNotPlainTap() {
+        // Google Sheets: tap vẫn giữ phím, nhưng emit phải là U+202F dance.
+        let w = W(tap: false, sel: .perField, empty: false)
+        let r = AppState.gateRouting(w, trusted: { true },
+                                     wantsSelection: { false },
+                                     wantsMarkedField: { XCTFail("emptyReset chốt trước marked"); return false },
+                                     wantsPassthroughField: { false },
+                                     wantsEmptyResetField: { true })
+        XCTAssertEqual(r, R(tap: false, selection: false, emptyReset: true))
+        XCTAssertTrue(r.tapDefer, "IMKit phải nhường cho tap")
+    }
+
+    func testWebKitSheetsKeepsInPlaceCarveOut() {
+        // Safari: in-place dùng insertText(replacementRange:) nên không có ⌫ nào đụng
+        // vùng chọn gợi ý — giữ carve-out, chưa có field report ngược lại.
+        let w = W(tap: false, sel: .perField, empty: false)
+        let r = AppState.gateRouting(w, trusted: { true },
+                                     wantsSelection: { false },
+                                     wantsMarkedField: { false },
+                                     wantsPassthroughField: { false },
+                                     wantsEmptyResetField: { true },
+                                     pageContentInPlace: true)
+        XCTAssertEqual(r, R(), "Sheets trong Safari vẫn in-place")
+    }
+
+    func testCRDBeatsSheetsVerdict() {
+        // Ưu tiên: passthrough (CRD) > emptyReset (Sheets).
+        let w = W(tap: false, sel: .perField, empty: false)
+        let r = AppState.gateRouting(w, trusted: { true },
+                                     wantsSelection: { false },
+                                     wantsMarkedField: { false },
+                                     wantsPassthroughField: { true },
+                                     wantsEmptyResetField: { XCTFail("passthrough chốt trước"); return true })
+        XCTAssertEqual(r, R())
+    }
+
     func testOmniboxStillRoutesToSelection() {
         let w = W(tap: false, sel: .perField, empty: false)
         let r = AppState.gateRouting(w, trusted: { true },
@@ -204,6 +266,24 @@ final class RoutingDecisionTests: XCTestCase {
                       "Chromium page content stays on the tap")
     }
 
+    func testEndToEndChromeSheetsUsesEmptyReset() {
+        Accessibility.testTrustOverride = true
+        defer {
+            Accessibility.testTrustOverride = nil
+            FocusedFieldDetector.invalidate()
+        }
+        FocusedFieldDetector._testSetCached(false)        // page content, not omnibox
+        FocusedFieldDetector._testSetMarked(false)
+        FocusedFieldDetector._testSetPassthrough(false)
+        FocusedFieldDetector._testSetEmptyReset(true)     // docs.google.com/spreadsheets
+        let r = AppState.shared.tapRouting("com.google.Chrome")
+        XCTAssertTrue(r.emptyReset, "ô Sheets phải đi U+202F dance")
+        XCTAssertFalse(r.tap, "không còn ⌫ thuần")
+        FocusedFieldDetector._testSetEmptyReset(false)
+        XCTAssertTrue(AppState.shared.tapRouting("com.google.Chrome").tap,
+                      "rời Sheets thì page content quay lại tap thường")
+    }
+
     func testEndToEndChromeRemoteDesktopSkipsTap() {
         Accessibility.testTrustOverride = true
         defer {
@@ -212,6 +292,7 @@ final class RoutingDecisionTests: XCTestCase {
         }
         FocusedFieldDetector._testSetCached(false)       // page content, not omnibox
         FocusedFieldDetector._testSetMarked(false)
+        FocusedFieldDetector._testSetEmptyReset(false)
         FocusedFieldDetector._testSetPassthrough(true)   // remotedesktop.google.com
         XCTAssertFalse(AppState.shared.tapRouting("com.google.Chrome").tapDefer,
                        "Chrome Remote Desktop must not tap-compose (guest IME owns keys)")

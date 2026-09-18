@@ -270,6 +270,40 @@ final class PassthroughFieldURLTests: XCTestCase {
     }
 }
 
+// Google Sheets (field 18/09/2026): ô lưới gợi ý cả giá trị cột sau chữ đầu và giữ
+// phần còn lại ĐANG CHỌN, nên ⌫ của tap xoá vùng chọn thay vì ký tự → gõ "User " ra
+// "UUser " (log: biên từ phát bs=2 ins=4 khi màn hình còn dư "U"). Cùng thuốc với
+// omnibox Chromium/Excel: .emptyReset (U+202F dance).
+final class EmptyResetFieldURLTests: XCTestCase {
+
+    func testGoogleSheetsForcesEmptyReset() {
+        XCTAssertTrue(FocusedFieldDetector.emptyResetFieldURL(
+            URL(string: "https://docs.google.com/spreadsheets/d/abc123/edit")))
+        XCTAssertTrue(FocusedFieldDetector.emptyResetFieldURL(
+            URL(string: "https://docs.google.com/spreadsheets/u/0/")))
+    }
+
+    func testDocsAndOtherHostsUnaffected() {
+        // /document là lớp MARKED (canvas), không phải emptyReset.
+        XCTAssertFalse(FocusedFieldDetector.emptyResetFieldURL(
+            URL(string: "https://docs.google.com/document/d/abc/edit")))
+        XCTAssertTrue(FocusedFieldDetector.markedFieldURL(
+            URL(string: "https://docs.google.com/document/d/abc/edit")))
+        XCTAssertFalse(FocusedFieldDetector.emptyResetFieldURL(
+            URL(string: "https://docs.google.com/presentation/d/abc/edit")))
+        XCTAssertFalse(FocusedFieldDetector.emptyResetFieldURL(
+            URL(string: "https://sheets.evil.example/spreadsheets/d/abc")))
+        XCTAssertFalse(FocusedFieldDetector.emptyResetFieldURL(nil))
+    }
+
+    func testInvalidateResetsEmptyResetVerdict() {
+        FocusedFieldDetector._testSetEmptyReset(true)
+        XCTAssertTrue(FocusedFieldDetector.wantsEmptyResetField)
+        FocusedFieldDetector.invalidate()
+        XCTAssertFalse(FocusedFieldDetector.wantsEmptyResetField)
+    }
+}
+
 // Discord-web (2026-08-05): Lexical composer ignores replacementRange on VISIBLE text
 // while caret + AX say honored — undetectable by probes, marked costs double-Enter.
 // URL rule routes the field through the tap path (như Discord desktop từ ngày đầu).
