@@ -442,9 +442,16 @@ synthetic) gửi scancode sang guest; VietTelex bên guest cũng compose. Hai b�
 cùng sửa một dòng.
 
 Native RDP (Windows App, Screen Sharing, AnyDesk…) đã passthrough theo bundle id.
-CRD không có bundle riêng — vẫn `com.google.Chrome` — nên phải dò **URL web area**
-(`ClientPolicy.isRemoteDesktopURL`) rồi passthrough cả tap lẫn IMKit, để chỉ IME
-máy remote gõ. Ô omnibox của Chrome không đụng (vẫn selection-replace).
+CRD tab thường không có bundle riêng — vẫn `com.google.Chrome` — nên phải dò
+**URL web area** (`ClientPolicy.isRemoteDesktopURL`) rồi passthrough cả tap lẫn
+IMKit, để chỉ IME máy remote gõ. Ô omnibox của Chrome không đụng (vẫn
+selection-replace).
+
+PWA / "Install app" thì **có** bundle riêng
+(`com.google.Chrome.app.cmkncekebbebpfilplodngbpllndjkfo`, field 18/09/2026).
+Thiếu id đó trong `chromeRemoteDesktopExtensionIDs` thì cửa sổ PWA là app lạ →
+TAP (không scan URL) → `thuw` thành `tha`: unicode insert của tap post
+`virtualKey: 0` (`kVK_ANSI_A`), CRD chỉ chuyển scancode.
 
 Đừng "sửa" bằng cách pin cả Chrome sang passthrough: phá gõ tiếng Việt mọi tab.
 
@@ -587,7 +594,10 @@ Gỡ, rẻ → chắc:
 Không có bộ gõ bên thứ ba nào "không xung đột": Input Monitoring **không**
 bypass SI trên Ventura+ (OpenKey #179 xác nhận). VietTelex chỉ làm được: hiện
 icon `Vᵀ⃠` ngay lúc wake, gọi đúng tên 1Password kể cả khi ioreg ghi
-loginwindow, và reselect IME khi SI tắt (quit 1Password). Fix gốc là 1Password
+loginwindow, và reselect IME khi SI tắt (quit 1Password). `preferredHolderName`
+ưu tiên `proc_name` khi PID là loginwindow — `localizedName` bản Việt
+("Cửa sổ đăng nhập") từng làm hint rơi xuống "tắt Secure Keyboard Entry của
+Terminal" dù banner vẫn ghi loginwindow. Fix gốc là 1Password
 phải `DisableSecureEventInput` khi mất focus / sau wake — họ claim đã vá ở
 18.12.26 ("keep Secure Input enabled longer than intended") nhưng field 07–09
 2026 vẫn còn.

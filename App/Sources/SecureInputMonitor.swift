@@ -200,7 +200,19 @@ final class SecureInputMonitor {
 
     static func looksLikeLoginwindow(_ name: String?) -> Bool {
         guard let raw = name?.lowercased() else { return false }
-        return raw.contains("loginwindow") || raw == "login window"
+        return raw.contains("loginwindow")
+            || raw == "login window"
+            || raw.contains("cửa sổ đăng nhập")
+    }
+
+    /// `NSRunningApplication.localizedName` for loginwindow can be a translated
+    /// "Login Window" (`Cửa sổ đăng nhập`) that used to miss `looksLikeLoginwindow`
+    /// → banner named loginwindow (via `proc_name`) while the hint fell through to
+    /// Terminal/generic. Prefer the unix name when it IS loginwindow so classifyHint
+    /// and the greppable banner stay aligned.
+    static func preferredHolderName(localized: String?, proc: String?) -> String? {
+        if looksLikeLoginwindow(proc) { return proc }
+        return localized ?? proc
     }
 
     static func looksLikeTerminal(_ name: String?) -> Bool {
@@ -383,11 +395,12 @@ final class SecureInputMonitor {
     }
 
     /// Tên process: NSRunningApplication cho app có UI, proc_name cho daemon/CLI.
+    /// loginwindow: luôn lấy `proc_name` (xem `preferredHolderName`).
     static func processName(_ pid: pid_t) -> String? {
-        if let app = NSRunningApplication(processIdentifier: pid),
-           let name = app.localizedName { return name }
         var buf = [CChar](repeating: 0, count: 256)
-        guard proc_name(pid, &buf, UInt32(buf.count)) > 0 else { return nil }
-        return String(cString: buf)
+        let proc = proc_name(pid, &buf, UInt32(buf.count)) > 0
+            ? String(cString: buf) : nil
+        let localized = NSRunningApplication(processIdentifier: pid)?.localizedName
+        return preferredHolderName(localized: localized, proc: proc)
     }
 }

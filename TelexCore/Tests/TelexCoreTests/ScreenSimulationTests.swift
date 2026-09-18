@@ -217,4 +217,33 @@ final class ScreenSimulationTests: XCTestCase {
             assertScreenTracksWithBackspaces(ops, settings: { var e = $0; e.liveSpellCheck = true; return e })
         }
     }
+
+    // MARK: - Chrome Remote Desktop keycode pipe (why PWA must passthrough)
+
+    /// Local TAP Backspace+retype posts unicode with `virtualKey: 0` (= `kVK_ANSI_A`).
+    /// CRD forwards scancodes, not unicode, so the guest sees ⌫ then `a`. Field
+    /// 18/09/2026: `thuw` (want `thư`) became `tha` when both machines ran VietTelex
+    /// and the local window was the official CRD PWA (unknown app → TAP, no URL scan).
+    func testChromeRemoteDesktopKeycodePipeTurnsThuWIntoTha() {
+        var e = TelexEngine()
+        var local = Screen()
+        var remote = Screen()
+        for ch in "thuw" {
+            let action = e.feed(ch)
+            local.apply(action, feedChar: ch)
+            switch action {
+            case .passthrough:
+                remote.apply(.passthrough, feedChar: ch)
+            case .replace(let bs, let insert):
+                for _ in 0..<bs { remote.apply(.passthrough, feedChar: nil) }
+                // Each unicode scalar of the insert is posted as vk0 = 'a'.
+                for _ in insert { remote.apply(.passthrough, feedChar: "a") }
+            case .none:
+                break
+            }
+        }
+        XCTAssertEqual(local.text, "thư")
+        XCTAssertEqual(e.composed, "thư")
+        XCTAssertEqual(remote.text, "tha")
+    }
 }

@@ -43,10 +43,16 @@ public enum ClientPolicy {
     /// substrings of PWA / "Open as window" bundle ids
     /// (`com.google.Chrome.app.<id>`).
     /// `gbchcmhmhahfdphkhkmpfmiifomcnacc` is the legacy Chrome App; the current
-    /// companion extension is `inomeogfingihgjfjlpeplalcfajhgai`.
+    /// companion extension is `inomeogfingihgjfjlpeplalcfajhgai`. The official
+    /// "Install app" PWA is `cmkncekebbebpfilplodngbpllndjkfo` — field 18/09/2026:
+    /// bundle `com.google.Chrome.app.cmkncekebbebpfilplodngbpllndjkfo`. Without
+    /// that id the PWA is an unknown app → TAP (no URL scan), so local
+    /// Backspace+retype fights the guest IME (`thuw` → `tha`: unicode insert
+    /// posts `virtualKey: 0` = `kVK_ANSI_A`).
     public static let chromeRemoteDesktopExtensionIDs: Set<String> = [
         "inomeogfingihgjfjlpeplalcfajhgai",
         "gbchcmhmhahfdphkhkmpfmiifomcnacc",
+        "cmkncekebbebpfilplodngbpllndjkfo",
     ]
 
     /// True when the built-in list marks this client as force-passthrough.

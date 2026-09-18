@@ -53,6 +53,8 @@ final class GonhanhHardeningTests: XCTestCase {
         // Dedicated CRD window (PWA / Chrome App) must not inherit Chrome's axDetect.
         XCTAssertEqual(AppState.shared.autoResolvedMode(
             "com.google.Chrome.app.Default-inomeogfingihgjfjlpeplalcfajhgai"), .passthrough)
+        XCTAssertEqual(AppState.shared.autoResolvedMode(
+            "com.google.Chrome.app.cmkncekebbebpfilplodngbpllndjkfo"), .passthrough)
         XCTAssertEqual(AppState.shared.autoResolvedMode("com.google.Chrome"), .axDetect)
     }
 

@@ -248,6 +248,8 @@ final class PassthroughFieldURLTests: XCTestCase {
             URL(string: "https://www.remotedesktop.google.com/")))
         XCTAssertTrue(FocusedFieldDetector.passthroughFieldURL(
             URL(string: "chrome-extension://inomeogfingihgjfjlpeplalcfajhgai/")))
+        XCTAssertTrue(FocusedFieldDetector.passthroughFieldURL(
+            URL(string: "chrome-extension://cmkncekebbebpfilplodngbpllndjkfo/")))
     }
 
     func testOtherHostsNeverForcePassthrough() {

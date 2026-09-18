@@ -183,12 +183,39 @@ final class AppSupportTests: XCTestCase {
         XCTAssertFalse(SecureInputMonitor.looksLikePasswordManager(nil))
         XCTAssertTrue(SecureInputMonitor.looksLikeLoginwindow("loginwindow"))
         XCTAssertTrue(SecureInputMonitor.looksLikeLoginwindow("Login Window"))
+        XCTAssertTrue(SecureInputMonitor.looksLikeLoginwindow("Cửa sổ đăng nhập"))
         XCTAssertFalse(SecureInputMonitor.looksLikeLoginwindow("1Password"))
         XCTAssertTrue(SecureInputMonitor.looksLikeTerminal("Terminal"))
         XCTAssertTrue(SecureInputMonitor.looksLikeTerminal("iTerm2"))
         XCTAssertFalse(SecureInputMonitor.looksLikeTerminal("1Password"))
         XCTAssertEqual(SecureInputMonitor.canonicalPasswordManagerName("1Password for Safari"),
                        "1Password")
+        // Localized "Login Window" used to miss looksLikeLoginwindow → Terminal hint
+        // while the banner still said loginwindow via proc_name. Prefer unix name.
+        XCTAssertEqual(
+            SecureInputMonitor.preferredHolderName(localized: "Cửa sổ đăng nhập",
+                                                   proc: "loginwindow"),
+            "loginwindow")
+        XCTAssertEqual(
+            SecureInputMonitor.preferredHolderName(localized: "Login Window",
+                                                   proc: "loginwindow"),
+            "loginwindow")
+        XCTAssertEqual(
+            SecureInputMonitor.preferredHolderName(localized: "1Password", proc: nil),
+            "1Password")
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "Cửa sổ đăng nhập", holderAlive: true,
+                                            runningPasswordManagers: []),
+            .loginwindowStuck)
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(
+                holderName: SecureInputMonitor.preferredHolderName(
+                    localized: "Cửa sổ đăng nhập", proc: "loginwindow"),
+                holderAlive: true, runningPasswordManagers: []),
+            .loginwindowStuck)
+        let loginHint = SecureInputMonitor.hintText(.loginwindowStuck)
+        XCTAssertFalse(loginHint.localizedCaseInsensitiveContains("Terminal"),
+                       "loginwindow stuck must not be diagnosed as Secure Keyboard Entry")
     }
 
     func testBoundedDataEnforcesByteCap() async {
