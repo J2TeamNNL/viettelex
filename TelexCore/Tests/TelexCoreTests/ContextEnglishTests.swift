@@ -267,4 +267,19 @@ final class ContextEnglishFieldReportTests: XCTestCase {
         XCTAssertEqual(sentence("he thoi is", context: true), "he thoi í")
         XCTAssertEqual(sentence("he thois is", context: true), "he thói í")
     }
+
+    /// Issue #89 (21/09/2026): "macos as em" → "macos as em". The structural rule
+    /// (unknown non-VN word opens an English run — the 2026-08-14 "position is" fix)
+    /// swallowed brand/tech names Vietnamese sentences use constantly. They are
+    /// NEUTRAL loanwords like "email": preserve context, never open a run.
+    func testBrandNamesDoNotOpenEnglishRun() {
+        XCTAssertEqual(sentence("macos as em", context: true), "macos á em")
+        XCTAssertEqual(sentence("Macos as em", context: true), "Macos á em")
+        XCTAssertEqual(sentence("zalo as em", context: true), "zalo á em")
+        XCTAssertEqual(sentence("iphone is", context: true), "iphone í")
+        // …but inside an English run they keep it open ("the macos is").
+        XCTAssertEqual(sentence("the macos is", context: true), "the macos is")
+        // The 08-14 case must not regress.
+        XCTAssertEqual(sentence("position is not okay", context: true), "position is not okay")
+    }
 }

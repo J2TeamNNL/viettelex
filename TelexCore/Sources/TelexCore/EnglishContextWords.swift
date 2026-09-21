@@ -44,6 +44,12 @@ enum EnglishContextWords {
         feed group groups page pages shop sale size order ship voucher deal
         combo view views like likes sub vlog idol hot top vip pro logo banner
         code demo test server client account profile password login logout
+        macos ios windows android linux mac macbook imac iphone ipad ipod
+        airpods apple gmail youtube facebook messenger instagram
+        tiktok telegram whatsapp viber zalo discord slack zoom chrome
+        safari firefox edge excel powerpoint outlook onedrive dropbox
+        notion figma canva netflix spotify shopee lazada tiki grab momo
+        vnpay viettel vinaphone mobifone samsung xiaomi oppo huawei
         """)
 
     /// Longest word in the set — lets the caller skip words that can't possibly match.
