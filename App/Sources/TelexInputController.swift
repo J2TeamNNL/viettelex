@@ -725,7 +725,7 @@ final class TelexInputController: IMKInputController {
             let wasEdge = edgeTapWord
             let rewrote = boundary(client, suppressAutoRestore: boundaryChar.map(isBracket) ?? false,
                                    allowShortcuts: Self.shortcutExpansionAllowed(afterDigit: wordGluedToDigit))
-            wordGluedToDigit = Self.isAsciiDigit(boundaryChar)
+            wordGluedToDigit = Self.gluesShortcutToken(boundaryChar)   // #82 số, #87 / # @
             // Only a key that leaves exactly ONE character after the word may be
             // ⌫-ed back into it (issue #40). Arrow/function keys land here too — they
             // move the caret and insert nothing, so the word is no longer adjacent.
@@ -2293,6 +2293,14 @@ final class TelexInputController: IMKInputController {
     static func isAsciiDigit(_ c: UInt8?) -> Bool {
         guard let c else { return false }
         return c >= UInt8(ascii: "0") && c <= UInt8(ascii: "9")
+    }
+    /// Issue #87: "/h3" nở thành "/giờ3" — slash command (Lark, Slack, Notion, Discord)
+    /// là cùng lớp token với "5h": từ dính liền sau ký tự MỞ TOKEN thì không phải một
+    /// từ đứng riêng. Nhóm ký tự mở token = chữ số (#82) + `/` `#` `@` (`/cmd`,
+    /// `#tag`, `@mention`). Pure — pinned by ShortcutAfterDigitTests.
+    static func gluesShortcutToken(_ c: UInt8?) -> Bool {
+        guard let c else { return false }
+        return isAsciiDigit(c) || c == UInt8(ascii: "/") || c == UInt8(ascii: "#") || c == UInt8(ascii: "@")
     }
 
     func strategyLabel(_ id: String?, localized: Bool) -> String {

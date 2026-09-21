@@ -2724,7 +2724,7 @@ final class TerminalTapController {
             // exactly what should land, in every emit mode.)
             let rewrote = emitBoundary(suppressAutoRestore: isBracketUnichar(ch.utf16.first ?? unit),
                                        allowShortcuts: TelexInputController.shortcutExpansionAllowed(afterDigit: lastTapKeyWasDigit))
-            lastTapKeyWasDigit = TelexInputController.isAsciiDigit(ch.asciiValue)
+            lastTapKeyWasDigit = TelexInputController.gluesShortcutToken(ch.asciiValue)   // #82 số, #87 / # @
             // A plain ascii boundary (space, punctuation, digit) leaves exactly ONE
             // character after the word, which is what makes the next ⌫ re-openable
             // (issue #40). Anything else — an option-key symbol, a multi-scalar

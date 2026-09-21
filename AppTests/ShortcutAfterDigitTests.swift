@@ -15,4 +15,12 @@ final class ShortcutAfterDigitTests: XCTestCase {
         for c in " (.,-h".utf8 { XCTAssertFalse(TelexInputController.isAsciiDigit(c), String(UnicodeScalar(c))) }
         XCTAssertFalse(TelexInputController.isAsciiDigit(nil))
     }
+
+    /// Issue #87 (21/09/2026): "/h3" → "/giờ3" trong Lark. Slash command / hashtag /
+    /// mention là token như "5h": từ dính sau `/` `#` `@` không được nở gõ tắt.
+    func testTokenOpenersGlue() {
+        for c in "/#@0123456789".utf8 { XCTAssertTrue(TelexInputController.gluesShortcutToken(c), String(UnicodeScalar(c))) }
+        for c in " (.,-h\n:".utf8 { XCTAssertFalse(TelexInputController.gluesShortcutToken(c), String(UnicodeScalar(c))) }
+        XCTAssertFalse(TelexInputController.gluesShortcutToken(nil))
+    }
 }
