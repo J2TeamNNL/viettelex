@@ -20,6 +20,13 @@ final class BoundaryRepostTests: XCTestCase {
         // preserve that distinction or a shortcut expansion turns it into a send.
         XCTAssertTrue(down.flags.contains(.maskShift))
         XCTAssertTrue(up.flags.contains(.maskShift))
+        // hidSystemState loses that bit: the unicode burst clears Chromium's shift
+        // latch, and a released physical Shift reconciles the flags to "up", so the
+        // re-post arrives as plain Enter and the chat SENDS. Private-source Return
+        // is the measured "insert newline, don't send" path. Plain Enter (no shift)
+        // must stay hardware-like — see testRepostCarriesNoMagicStamp.
+        XCTAssertTrue(SyntheticKeyboard.isSyntheticMagic(down))
+        XCTAssertTrue(SyntheticKeyboard.isSyntheticMagic(up))
     }
 
     /// NO magic: IMKit's handle() drops magic events without processing; this Enter

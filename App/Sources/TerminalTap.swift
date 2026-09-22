@@ -1613,13 +1613,14 @@ enum SyntheticKeyboard {
     ///   (repro 2026-08-06: copy posted → passes our tap → never reaches IMKit;
     ///   WhatsApp beeped once, message not sent, shortcut "ko"→"không" needed a
     ///   second Enter).
-    /// So: build a NEW event from the .hidSystemState source (hardware-like for
-    /// Electron, deliverable on macOS 26), same keycode + flags as the original.
-    /// No magic on purpose — when it re-enters IMKit it is handled as a REAL key;
-    /// by then the engine is empty (boundary() just ran) so it passes straight
-    /// through (`rewrote=false`), no loop. The keyUp is posted too so the app
-    /// never sees a keyDown left logically held (the user's physical keyUp
-    /// precedes our down and cannot pair with it).
+    /// So: build a NEW event, same keycode + flags as the original. Plain
+    /// Return uses .hidSystemState and no magic — when it re-enters IMKit it is
+    /// a REAL key; the engine is empty (boundary() just ran) so it passes
+    /// through (`rewrote=false`), no loop, and Electron still fires Enter-to-send.
+    /// Shift+Return uses the private source instead: a hidSystemState re-post
+    /// loses the shift bit and the chat sends (see makeBoundaryRepost). The
+    /// keyUp is posted too so the app never sees a keyDown left logically held
+    /// (the user's physical keyUp precedes our down and cannot pair with it).
     static func postBoundaryCopy(of event: CGEvent) {
         postBoundaryKey(CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)),
                         flags: event.flags)
@@ -1643,13 +1644,33 @@ enum SyntheticKeyboard {
     }
 
     /// Builds the down/up pair postBoundaryCopy sends. Split out so tests can pin
-    /// the load-bearing properties without posting: .hidSystemState source (NOT the
-    /// private magic source — Electron demotes private-source Return to "newline",
-    /// and magic would make IMKit skip it) and NOT a copy of the hardware event
-    /// (macOS 26 drops re-posted copies before app delivery).
+    /// the load-bearing properties without posting.
+    ///
+    /// Plain Return/Tab/Esc: .hidSystemState, NO magic. Electron treats a private-
+    /// source Return as "insert newline" instead of Enter-to-send, and magic would
+    /// make IMKit skip the key so the message never sends. Not a copy of the
+    /// hardware event either — macOS 26 drops re-posted HID copies before delivery.
+    ///
+    /// Shift+Return / Shift+keypad-Enter: the PRIVATE magic source, flags still
+    /// carrying shift. Two things strip shift off a hidSystemState re-post and turn
+    /// "newline" into "send":
+    /// - the unicode burst posted immediately before this pair sets `flags = []`,
+    ///   and Chromium latches that as "shift is up";
+    /// - the user has often already released Shift (fast chord, or the 60ms
+    ///   marked-web delay) and macOS reconciles hidSystemState flags to the live
+    ///   keyboard.
+    /// Private-source Return is the path already measured to insert a newline and
+    /// NOT fire Enter-to-send. Plain Enter must not take it.
     static func makeBoundaryRepost(key: CGKeyCode, flags: CGEventFlags) -> (down: CGEvent, up: CGEvent)? {
-        let src = CGEventSource(stateID: .hidSystemState)
-        guard let down = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: true),
+        let shiftNewline = flags.contains(.maskShift) && (key == 36 || key == 76)
+        let src: CGEventSource?
+        if shiftNewline, let privateSource = source {
+            src = privateSource
+        } else {
+            src = CGEventSource(stateID: .hidSystemState)
+        }
+        guard let src,
+              let down = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: true),
               let up = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: false) else { return nil }
         down.flags = flags
         up.flags = flags

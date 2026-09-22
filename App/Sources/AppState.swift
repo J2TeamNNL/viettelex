@@ -684,6 +684,10 @@ final class AppState: @unchecked Sendable {
         var tap = false
         var selection = false
         var emptyReset = false
+        /// Chromium per-field browser, Accessibility off. The tap cannot run and
+        /// in-place `insertText` has no contract with the page editor, so IMKit
+        /// composes marked (underlined) instead of passing raw ASCII.
+        var untrustedMarked = false
         /// True → IMKit must not compose; the tap owns (or deliberately passes) the key.
         var tapDefer: Bool { tap || selection || emptyReset }
     }
@@ -711,7 +715,19 @@ final class AppState: @unchecked Sendable {
                             wantsPassthroughField: () -> Bool = { false },
                             wantsEmptyResetField: () -> Bool = { false },
                             pageContentInPlace: Bool = false) -> TapRouting {
-        guard wants.any, trusted() else { return TapRouting() }
+        guard wants.any else { return TapRouting() }
+        guard trusted() else {
+            // Chromium page content is the tap's job. With Accessibility off the
+            // tap never starts, and the old early-return sent IMKit down in-place
+            // — Lexical/ProseMirror ignore that channel, so the key fell through
+            // as raw ASCII (Messenger composer: "banhs" stayed "banhs", 22/09/2026).
+            // Marked text is the degraded mode the settings banner already
+            // promises ("typing will be underlined"). WebKit is excluded via
+            // pageContentInPlace: its page content does not need the tap.
+            // Terminals and Excel are not per-field browsers and stay put.
+            let chromiumPage = wants.sel == .perField && !pageContentInPlace
+            return TapRouting(untrustedMarked: chromiumPage)
+        }
         // Per-field resolution (browsers, maintainer decision 2026-08-06): PAGE
         // CONTENT defaults to the TAP backspace-retype path — synthetic key events
         // are the only channel every web editor must handle (the EVKey/OpenKey
