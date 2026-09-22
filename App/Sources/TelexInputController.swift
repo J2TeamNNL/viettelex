@@ -464,6 +464,13 @@ final class TelexInputController: IMKInputController {
             logDecision("split-brain: client \(id ?? "?") routes tap, front \(frontID ?? "?") won't engage → marked for this focus")
             Signposts.log.notice("split-brain → marked: client=\(id ?? "?", privacy: .public) front=\(frontID ?? "?", privacy: .public)")
         }
+        // Accessibility off on a Chromium page: do not in-place (the editor drops
+        // it and the user sees raw ASCII). Marked underline still composes.
+        // Spotlight stays raw — see the note on the defer below.
+        if routing.untrustedMarked, !spotlightDefersToTap, !fieldForcedMarked {
+            fieldForcedMarked = true
+            logDecision("untrusted chromium → marked (in-place would drop tones)")
+        }
         if (routing.tapDefer && !fieldForcedMarked) || spotlightDefersToTap {
             // NOTE: SpotlightDetector.isVisible defers UNCONDITIONALLY, even when the
             // tap is dormant (Accessibility not trusted / sandboxed build). That means

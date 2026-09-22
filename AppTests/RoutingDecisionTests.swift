@@ -33,6 +33,46 @@ final class RoutingDecisionTests: XCTestCase {
 
     // MARK: gate
 
+    /// Chromium page content without Accessibility used to fall through to
+    /// in-place, which Lexical ignores — tones never appeared ("banhs").
+    /// Marked is the underlined fallback. The detector must not run: AX lies
+    /// when untrusted, and the laziness contract forbids the scan.
+    func testUntrustedChromiumPageDegradesToMarked() {
+        let chrome = W(tap: false, sel: .perField, empty: false)
+        let r = AppState.gateRouting(chrome, trusted: { false },
+                                     wantsSelection: { XCTFail("untrusted must not scan"); return false },
+                                     wantsMarkedField: { XCTFail("untrusted must not scan"); return false },
+                                     pageContentInPlace: false)
+        XCTAssertEqual(r, R(untrustedMarked: true))
+        XCTAssertFalse(r.tapDefer)
+    }
+
+    /// Safari page content does not need the tap. Forcing marked there would
+    /// underline a path that already types in-place.
+    func testUntrustedWebKitStaysOffTheMarkedFallback() {
+        let safari = W(tap: false, sel: .perField, empty: false)
+        let r = AppState.gateRouting(safari, trusted: { false },
+                                     wantsSelection: { XCTFail("untrusted must not scan"); return false },
+                                     wantsMarkedField: { XCTFail("untrusted must not scan"); return false },
+                                     pageContentInPlace: true)
+        XCTAssertEqual(r, R())
+    }
+
+    /// Terminals and unconditional selection pins are not the Chromium page
+    /// failure. Don't widen the underlined fallback onto them.
+    func testUntrustedNonPerFieldDoesNotForceMarked() {
+        let terminal = W(tap: true, sel: .no, empty: false)
+        XCTAssertEqual(AppState.gateRouting(terminal, trusted: { false },
+                                            wantsSelection: { XCTFail(); return false },
+                                            wantsMarkedField: { XCTFail(); return false }),
+                       R())
+        let pinned = W(tap: false, sel: .yes, empty: false)
+        XCTAssertEqual(AppState.gateRouting(pinned, trusted: { false },
+                                            wantsSelection: { XCTFail(); return false },
+                                            wantsMarkedField: { XCTFail(); return false }),
+                       R())
+    }
+
     func testGateAppliesTrustToEveryFamily() {
         let all = W(tap: true, sel: .yes, empty: true)
         XCTAssertEqual(AppState.gateRouting(all, trusted: { true },
