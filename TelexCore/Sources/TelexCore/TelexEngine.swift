@@ -1215,6 +1215,13 @@ public struct TelexEngine {
     /// composition is abandoned (focus change, app switch, caret moved): after this
     /// no ⌫ may re-open anything, because the text before the caret is unknown.
     public mutating func reset() {
+        // Composition dropped MID-WORD (buffer still holds letters, no commit ran):
+        // the word on screen never updated the cross-word context, so whatever the
+        // word BEFORE it seeded would leak past it. Issue #91 (22/09/2026, Lark):
+        // "done rồi as" → "rồi" dropped between its last key and the space → "as"
+        // decided on "done" → restored to English. Previous word is now unknown →
+        // Vietnamese default, same call the ⌫-into-committed-text path makes.
+        if rawCount > 0 { previousWordEnglish = false }
         resetWord()
         reopenRawCount = 0
         reopenOutCount = 0
