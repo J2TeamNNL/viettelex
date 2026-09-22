@@ -75,6 +75,10 @@ com.apple.ScreenContinuity: inPlace
 com.apple.TextEdit: inPlace
 com.apple.Preview: inPlace
 com.apple.Passwords: inPlace
+# Little Snitch Agent (cửa sổ cảnh báo kết nối / tìm rule) — field 22/09/2026: app
+# lạ → tap backspace-retype → LS từ chối "Simulated Input Ignored" (bảo mật, cùng
+# lớp SecurityAgent). Cocoa thuần, in-place sạch.
+at.obdev.littlesnitch.agent: inPlace
 com.apple.appkit.xpc.openAndSavePanelService: inPlace
 # Popover đổi tên file trên thanh tiêu đề (Preview/TextEdit/Pages…) — cũng là
 # remote view service của AppKit như save panel ở trên. Thiếu rule thì client id
