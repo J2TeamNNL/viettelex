@@ -155,6 +155,7 @@ final class SettingsModel: ObservableObject {
     @Published var collisionPrefersVietnamese: Bool { didSet { AppState.shared.collisionPrefersVietnamese = collisionPrefersVietnamese } }
     @Published var stickyInputSource: Bool { didSet { AppState.shared.stickyInputSource = stickyInputSource } }
     @Published var switchHotkey: String { didSet { AppState.shared.switchHotkey = switchHotkey } }
+    @Published var typingModeInMenu: Bool { didSet { AppState.shared.typingModeInMenu = typingModeInMenu } }
     @Published var textToolsInMenu: Bool { didSet { AppState.shared.textToolsInMenu = textToolsInMenu } }
     /// Công cụ → Dịch: ngôn ngữ đích (TranslatePrefs; chỉ hiện trên macOS 26+).
     @Published var translateTarget: String { didSet { AppState.shared.translateTarget = translateTarget } }
@@ -241,6 +242,7 @@ final class SettingsModel: ObservableObject {
         collisionPrefersVietnamese = AppState.shared.collisionPrefersVietnamese
         stickyInputSource = AppState.shared.stickyInputSource
         switchHotkey = AppState.shared.switchHotkey
+        typingModeInMenu = AppState.shared.typingModeInMenu
         textToolsInMenu = AppState.shared.textToolsInMenu
         translateTarget = AppState.shared.translateTarget
         mathResults = AppState.shared.mathResults
@@ -816,7 +818,6 @@ struct ToolsTab: View {
             Section(header: Label(model.loc("Text tools"), systemImage: "textformat")) {
                 Text(model.loc(SettingsModel.textToolsCaptionKey(toolCount: TextToolsPanelLogic.tools.count)))
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Show text tools in the VietTelex menu"), isOn: $model.textToolsInMenu)
                 Picker(model.loc("Tools panel hotkey"), selection: $model.toolsPanelHotkey) {
                     ForEach(TextActionHotkey.toolsChoices, id: \.id) { c in
                         Text(c.id == "off" ? model.loc("Off") : c.label).tag(c.id)
@@ -1059,6 +1060,14 @@ struct GeneralTab: View {
     var body: some View {
         ScrollViewReader { proxy in
             Form {
+                Section(header: Label(model.loc("VietTelex menu"), systemImage: "list.bullet")) {
+                    Text(model.loc("Choose which items appear in the VietTelex menu."))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle(model.loc("Show the typing mode in the VietTelex menu"),
+                           isOn: $model.typingModeInMenu)
+                    Toggle(model.loc("Show the Tools item in the VietTelex menu"),
+                           isOn: $model.textToolsInMenu)
+                }
                 Section(header: Label(model.loc("Switch hotkey"), systemImage: "keyboard.badge.eye")) {
                     Picker(model.loc("Toggle VietTelex with"), selection: $model.switchHotkey) {
                         Text(model.loc("Off — use the macOS shortcut")).tag("off")

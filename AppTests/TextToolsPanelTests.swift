@@ -194,21 +194,22 @@ final class TextToolsPanelTests: XCTestCase {
         XCTAssertEqual(off.basis, .screen)
     }
 
-    /// Thứ tự menu (maintainer 14/10/2026): Công cụ… đầu tiên (chỉ khi bật), rồi dòng
-    /// Cơ chế gõ, Cài đặt…, Nguồn nhập liệu… (tên mới của "Cài đặt hệ thống…").
-    func testMenuOrderToolsFirstThenModeSettingsInputSources() {
-        XCTAssertEqual(TelexInputController.menuItemKeys(textToolsInMenu: true),
-                       ["Tools…", "Typing mode", "Settings…", "Input Sources…"])
-        XCTAssertEqual(TelexInputController.menuItemKeys(textToolsInMenu: false),
-                       ["Typing mode", "Settings…", "Input Sources…"])
+    /// Hai mục phụ có thể ẩn riêng; Cài đặt… luôn còn trong menu.
+    func testMenuItemsCanBeHiddenIndependently() {
+        XCTAssertEqual(TelexInputController.menuItemKeys(textToolsInMenu: true, typingModeInMenu: true),
+                       ["Tools…", "Typing mode", "Settings…"])
+        XCTAssertEqual(TelexInputController.menuItemKeys(textToolsInMenu: true, typingModeInMenu: false),
+                       ["Tools…", "Settings…"])
+        XCTAssertEqual(TelexInputController.menuItemKeys(textToolsInMenu: false, typingModeInMenu: true),
+                       ["Typing mode", "Settings…"])
+        XCTAssertEqual(TelexInputController.menuItemKeys(textToolsInMenu: false, typingModeInMenu: false),
+                       ["Settings…"])
     }
 
     func testMenuItemsLocalized() throws {
         let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
         let vi = try XCTUnwrap(Bundle(path: path))
-        XCTAssertEqual(vi.localizedString(forKey: TelexInputController.inputSourcesItemKey, value: nil, table: nil),
-                       "Nguồn nhập liệu…")
-        for key in TelexInputController.menuItemKeys(textToolsInMenu: true) {
+        for key in TelexInputController.menuItemKeys(textToolsInMenu: true, typingModeInMenu: true) {
             XCTAssertNotEqual(vi.localizedString(forKey: key, value: "∅", table: nil), "∅", key)
         }
     }

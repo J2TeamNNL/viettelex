@@ -1198,11 +1198,17 @@ final class AppState: @unchecked Sendable {
         set { defaults.set(newValue, forKey: "axPromptShown") }
     }
 
-    // MARK: - Công cụ văn bản / đồng bộ iCloud (không đọc trên hot path)
+    // MARK: - Tuỳ chọn menu / đồng bộ iCloud (không đọc trên hot path)
 
-    /// Hiện Thêm dấu + đổi chữ HOA/thường… trong menu VietTelex. Mặc định bật.
+    /// Hiện dòng cách gõ hiện tại trong menu VietTelex. Mặc định ẩn để menu gọn hơn.
+    var typingModeInMenu: Bool {
+        get { defaults.object(forKey: "typingModeInMenu") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "typingModeInMenu") }
+    }
+
+    /// Hiện mục Công cụ… trong menu VietTelex. Mặc định ẩn để menu gọn hơn.
     var textToolsInMenu: Bool {
-        get { defaults.object(forKey: "textToolsInMenu") as? Bool ?? true }
+        get { defaults.object(forKey: "textToolsInMenu") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "textToolsInMenu") }
     }
 

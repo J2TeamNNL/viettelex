@@ -42,11 +42,49 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertEqual(Set(SettingsTab.allCases.map(\.icon)).count, SettingsTab.allCases.count)
     }
 
+    func testWeeklyUpdateNotificationDestinationIsLocalized() throws {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
+        let vi = try XCTUnwrap(Bundle(path: path))
+        XCTAssertEqual(vi.localizedString(forKey: "Open Settings → General to install it.", value: nil, table: nil),
+                       "Mở Cài đặt → Chung rồi chọn Cập nhật ngay.")
+    }
+
     /// Mở thẳng vào bất kỳ tab nào (không còn rơi về tab đầu khi "nâng cao" tắt).
     func testModelOpensRequestedTab() {
         for tab in SettingsTab.allCases {
             XCTAssertEqual(SettingsModel(selected: tab).selectedTab, tab)
         }
+    }
+
+    func testMenuVisibilitySettingsDefaultHiddenAndPersistIndependently() {
+        let typingKey = "typingModeInMenu"
+        let toolsKey = "textToolsInMenu"
+        let oldTyping = s.defaults.object(forKey: typingKey)
+        let oldTools = s.defaults.object(forKey: toolsKey)
+        defer {
+            if let oldTyping { s.defaults.set(oldTyping, forKey: typingKey) }
+            else { s.defaults.removeObject(forKey: typingKey) }
+            if let oldTools { s.defaults.set(oldTools, forKey: toolsKey) }
+            else { s.defaults.removeObject(forKey: toolsKey) }
+        }
+
+        s.defaults.removeObject(forKey: typingKey)
+        s.defaults.removeObject(forKey: toolsKey)
+        XCTAssertFalse(s.typingModeInMenu)
+        XCTAssertFalse(s.textToolsInMenu)
+
+        let model = SettingsModel(selected: .general)
+        model.typingModeInMenu = true
+        XCTAssertTrue(s.typingModeInMenu)
+        XCTAssertFalse(s.textToolsInMenu)
+
+        model.textToolsInMenu = true
+        XCTAssertTrue(s.typingModeInMenu)
+        XCTAssertTrue(s.textToolsInMenu)
+
+        model.typingModeInMenu = false
+        XCTAssertFalse(s.typingModeInMenu)
+        XCTAssertTrue(s.textToolsInMenu)
     }
 
     /// Chú thích Công cụ văn bản theo đúng số dòng của bảng (7 khi có Dịch), có tiếng Việt.

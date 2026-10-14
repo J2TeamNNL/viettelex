@@ -2294,7 +2294,7 @@ final class TelexInputController: IMKInputController {
 
         // Weekly check found a newer version that isn't installed yet. The notification
         // alone isn't enough: an IME's banner permission is often denied or never
-        // answered, and then the news sat in Settings → About where nobody looks
+        // answered, and then the news sat in Settings → General → Updates where nobody looks
         // (issue #120). One line here only while an update is actually outstanding.
         if let v = UpdateCheck.outstandingUpdate(pending: UpdateCheck.pendingUpdateVersion,
                                                  current: UpdateCheck.currentVersion()) {
@@ -2307,11 +2307,11 @@ final class TelexInputController: IMKInputController {
 
         // Phần còn lại — PHẲNG, không menu con: macOS 27 TextInputMenuAgent vẽ menu con
         // nhưng không chuyển action của mục con về IME (thử d765295, revert fd8ef15).
-        // Thứ tự (maintainer 14/10/2026): Công cụ… (dùng nhiều nhất) → Cơ chế gõ →
-        // Cài đặt… → Nguồn nhập liệu… (Keyboard → Input Sources của macOS).
+        // Thứ tự: Công cụ… → Cơ chế gõ → Cài đặt…. Hai mục đầu có thể ẩn trong Cài đặt.
         // Phím tắt mở Công cụ KHÔNG gắn làm keyEquivalent: TextInputMenuAgent tự vẽ
         // menu từ bản sao, keyEquivalent ở đây không chắc hiện/chạy đúng — để Cài đặt nói.
-        for key in Self.menuItemKeys(textToolsInMenu: AppState.shared.textToolsInMenu) {
+        for key in Self.menuItemKeys(textToolsInMenu: AppState.shared.textToolsInMenu,
+                                     typingModeInMenu: AppState.shared.typingModeInMenu) {
             let item: NSMenuItem
             switch key {
             case Self.typingModeItemKey:
@@ -2323,9 +2323,6 @@ final class TelexInputController: IMKInputController {
                 item.toolTip = VTLocalized("Click: open the Typing modes table + copy debug info")
             case Self.settingsItemKey:
                 item = NSMenuItem(title: VTLocalized(key), action: #selector(openSettings(_:)), keyEquivalent: "")
-            case Self.inputSourcesItemKey:
-                item = NSMenuItem(title: VTLocalized(key), action: #selector(openSystemKeyboardSettings(_:)),
-                                  keyEquivalent: "")
             default:
                 // Công cụ văn bản (TextActions.swift): MỘT mục mở bảng nổi cạnh con trỏ
                 // (TextToolsPanel) thay cho 6 mục phẳng (maintainer 27/09).
@@ -2343,15 +2340,13 @@ final class TelexInputController: IMKInputController {
     /// Dòng "Cơ chế gõ: …" (tiêu đề thật = khoá + ": " + cơ chế của app đang gõ).
     static let typingModeItemKey = "Typing mode"
     static let settingsItemKey = "Settings…"
-    /// Mở Keyboard → Input Sources của macOS (trước 14/10/2026 tên "Cài đặt hệ thống…").
-    static let inputSourcesItemKey = "Input Sources…"
     /// Thứ tự các mục sau dòng trạng thái / cập nhật — test giữ đúng vị trí.
-    static func menuItemKeys(textToolsInMenu: Bool) -> [String] {
-        (textToolsInMenu ? [toolsItemKey] : []) + [typingModeItemKey, settingsItemKey, inputSourcesItemKey]
-    }
-
-    @objc private func openSystemKeyboardSettings(_ sender: Any?) {
-        Self.openKeyboardInputSources()
+    static func menuItemKeys(textToolsInMenu: Bool, typingModeInMenu: Bool) -> [String] {
+        var keys: [String] = []
+        if textToolsInMenu { keys.append(toolsItemKey) }
+        if typingModeInMenu { keys.append(typingModeItemKey) }
+        keys.append(settingsItemKey)
+        return keys
     }
 
     @objc private func openTextTools(_ sender: Any?) {
